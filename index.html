@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>磯読み</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0E2430">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="lib/leaflet.css">
+<style>
+/* ------------------------------------------------------------------ tokens
+   オフライン前提なのでWebフォントは使わない。見出しだけ明朝にして海図の顔にする */
+:root{
+  --bg:#08161D; --panel:#0E2430; --panel2:#143240; --line:#1E4252;
+  --ink:#DCE8EA; --ink2:#9CB6BE; --ink3:#688793;
+  --chart:#6FC0D0; --shoal:#8FD8DE; --buoy:#E5AC44; --kelp:#6FB183; --alert:#E28A6C;
+  --iso1A:#E5AC44; --iso2:#E58044; --isoOther:#B98A5A;
+  --serif:"Yu Mincho","YuMincho","Hiragino Mincho ProN","MS PMincho",serif;
+  --sans:"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+  --mono:"Consolas","SFMono-Regular","Menlo","MS Gothic",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:13px; line-height:1.7; -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--chart); outline-offset:1px}
+
+/* ------------------------------------------------------------------ shell */
+#app{display:grid; grid-template-rows:auto 1fr; height:100%}
+
+#top{
+  display:flex; align-items:center; gap:14px; padding:0 12px; height:46px;
+  background:var(--panel); border-bottom:1px solid var(--line); flex:none; z-index:800;
+}
+#top .brand{font-family:var(--serif); font-size:19px; font-weight:700; letter-spacing:.08em}
+#top .brand small{
+  font-family:var(--mono); font-size:9px; letter-spacing:.22em; color:var(--chart);
+  display:block; line-height:1; margin-top:-2px;
+}
+#top .date{font-family:var(--mono); font-size:12px; color:var(--ink2); letter-spacing:.04em}
+#top .sp{flex:1}
+#top .net{font-family:var(--mono); font-size:10px; letter-spacing:.06em; padding:2px 7px; border:1px solid var(--line); border-radius:2px; color:var(--ink3)}
+#top .net.on{color:var(--kelp); border-color:currentColor}
+.btn{
+  background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+  border-radius:3px; padding:5px 11px; font-size:12px; white-space:nowrap;
+}
+.btn:hover{border-color:var(--chart)}
+.btn.pri{background:var(--chart); color:#062028; border-color:var(--chart); font-weight:700}
+.btn.sm{padding:3px 8px; font-size:11px}
+.btn[disabled]{opacity:.4; cursor:not-allowed}
+.dirty #saveBtn{border-color:var(--buoy); color:var(--buoy)}
+
+#body{display:grid; grid-template-columns:1fr 350px; min-height:0}
+#map{width:100%; height:100%; background:#0C2A3A}
+
+/* ------------------------------------------------------------------ side */
+#side{
+  background:var(--panel); border-left:1px solid var(--line);
+  display:flex; flex-direction:column; min-height:0; z-index:700;
+}
+#tabs{display:flex; border-bottom:1px solid var(--line); flex:none}
+#tabs button{
+  flex:1; background:none; border:none; padding:9px 4px; font-size:12px; color:var(--ink3);
+  border-bottom:2px solid transparent;
+}
+#tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--chart); font-weight:700}
+.pane{flex:1; overflow-y:auto; overscroll-behavior:contain; display:none}
+.pane[data-on]{display:block}
+
+.sec{border-bottom:1px solid var(--line); padding:12px 14px}
+.sec h3{
+  margin:0 0 9px; font-size:10px; font-family:var(--mono); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink3); font-weight:500;
+  display:flex; align-items:center; gap:8px;
+}
+.sec h3::after{content:""; flex:1; height:1px; background:var(--line)}
+.kv{display:grid; grid-template-columns:76px 1fr; gap:4px 10px; align-items:baseline}
+.kv dt{font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--ink3); text-transform:uppercase}
+.kv dd{margin:0; font-variant-numeric:tabular-nums}
+.kv dd em{font-style:normal; color:var(--ink3); font-size:11px; margin-left:5px}
+.tag{
+  font-family:var(--mono); font-size:9px; letter-spacing:.06em; border:1px solid currentColor;
+  border-radius:2px; padding:0 4px; margin-left:5px; white-space:nowrap;
+}
+.tag.meas{color:var(--kelp)} .tag.est{color:var(--buoy)} .tag.fc{color:var(--chart)}
+.muted{color:var(--ink3)}
+.warn{color:var(--alert)}
+.empty{color:var(--ink3); font-size:12px; padding:22px 14px; text-align:center; line-height:1.9}
+
+/* depth bars */
+.dbar{display:grid; grid-template-columns:34px 1fr 62px; gap:8px; align-items:center; margin-bottom:4px}
+.dbar .d{font-family:var(--mono); font-size:11px; color:var(--ink2); text-align:right}
+.dbar .t{height:7px; background:var(--panel2); border-radius:1px; overflow:hidden}
+.dbar .t i{display:block; height:100%; background:var(--chart)}
+.dbar .v{font-family:var(--mono); font-size:11px; text-align:right; font-variant-numeric:tabular-nums}
+
+/* tide */
+#tideSvg{display:block; width:100%; height:auto}
+.tstat{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; margin-top:8px}
+.tstat div{font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums}
+.tstat span{color:var(--ink3); letter-spacing:.06em}
+
+/* sdb legend */
+.sdbleg{padding:4px 10px 7px; font-size:10px; color:var(--ink3); line-height:1.6}
+.sdbleg div{display:flex; align-items:center; gap:6px}
+.sdbleg i{width:11px; height:11px; border-radius:2px; flex:none}
+
+/* flow score */
+.flow{display:flex; align-items:center; gap:12px; margin-bottom:10px}
+.flow .num{font-family:var(--mono); font-size:30px; font-weight:600; line-height:1; color:var(--chart)}
+.flow .lab{font-size:13px; font-weight:700; display:block}
+.flow .sub{font-size:11px; color:var(--ink3); line-height:1.5}
+.fb{display:grid; grid-template-columns:88px 1fr 34px; gap:8px; align-items:center; margin-bottom:3px}
+.fb .k{font-size:11px; color:var(--ink2)}
+.fb .t{height:6px; background:var(--panel2); border-radius:1px; overflow:hidden}
+.fb .t i{display:block; height:100%}
+.fb .v{font-family:var(--mono); font-size:10px; color:var(--ink3); text-align:right}
+.fb.off .k,.fb.off .v{opacity:.45}
+.hours{display:flex; gap:1px; margin-top:9px; align-items:flex-end; height:34px}
+.hours span{flex:1; background:var(--shoal); opacity:.45; border-radius:1px 1px 0 0}
+.hours span.pk{background:var(--buoy); opacity:1}
+.hours span.now{outline:1px solid var(--buoy); outline-offset:1px}
+.hourlab{display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; color:var(--ink3); margin-top:2px}
+
+/* layer control */
+#layers{
+  position:absolute; top:10px; right:10px; z-index:600; background:rgba(14,36,48,.95);
+  border:1px solid var(--line); border-radius:3px; width:196px; overflow:hidden;
+  backdrop-filter:blur(4px);
+}
+#layers .lh{
+  font-family:var(--mono); font-size:9px; letter-spacing:.14em; color:var(--ink3);
+  padding:7px 10px 5px; text-transform:uppercase; display:flex; align-items:center;
+}
+#layers .lh button{background:none;border:none;color:var(--ink3);font-size:11px;margin-left:auto;padding:0}
+#layers.min .lbody{display:none}
+.lrow{display:flex; align-items:center; gap:7px; padding:3px 10px; font-size:11.5px}
+.lrow:hover{background:var(--panel2)}
+.lrow input{margin:0; accent-color:var(--chart)}
+.lrow label{flex:1; cursor:pointer; display:flex; align-items:center; gap:6px}
+.lrow i{width:12px; height:2px; border-radius:1px; flex:none}
+.lrow .st{font-family:var(--mono); font-size:9px; color:var(--ink3)}
+.lsep{height:1px; background:var(--line); margin:5px 0}
+
+/* forms */
+.form{padding:12px 14px; display:flex; flex-direction:column; gap:9px}
+.f{display:flex; flex-direction:column; gap:3px}
+.f label{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--ink3); text-transform:uppercase}
+.f input,.f select,.f textarea{
+  background:var(--bg); border:1px solid var(--line); border-radius:3px;
+  padding:5px 7px; font-size:12.5px; width:100%;
+}
+.f textarea{resize:vertical; min-height:52px; font-family:inherit}
+.f2{display:grid; grid-template-columns:1fr 1fr; gap:9px}
+.f3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px}
+.rowbtns{display:flex; gap:7px; margin-top:2px}
+.hintline{font-size:11px; color:var(--ink3); line-height:1.65}
+
+/* trips */
+.trip{border-bottom:1px solid var(--line); padding:10px 14px}
+.trip .th{display:flex; align-items:baseline; gap:8px}
+.trip .td{font-family:var(--mono); font-size:12px; color:var(--chart)}
+.trip .ts{font-size:12px; font-weight:700}
+.trip .tb{font-family:var(--mono); font-size:10.5px; color:var(--ink3); margin-left:auto}
+.trip .tm{font-size:12px; color:var(--ink2); margin-top:3px}
+.trip .tc{font-size:12px; margin-top:3px}
+.trip .del{background:none;border:none;color:var(--ink3);font-size:11px;padding:0}
+.trip .del:hover{color:var(--alert)}
+
+/* spots list */
+.spot{display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--line)}
+.spot:hover{background:var(--panel2)}
+.spot .n{flex:1; font-size:12.5px; cursor:pointer}
+.spot .c{font-family:var(--mono); font-size:10px; color:var(--ink3)}
+
+/* caution */
+.caution{
+  margin:10px 14px 0; border:1px solid var(--line); border-left:2px solid var(--alert);
+  padding:9px 11px; font-size:11.5px; color:var(--ink2); line-height:1.7; border-radius:0 3px 3px 0;
+}
+.caution b{color:var(--alert)}
+
+/* toast */
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  background:var(--panel2); border:1px solid var(--line); border-radius:3px;
+  padding:8px 16px; font-size:12.5px; z-index:2000; opacity:0; pointer-events:none;
+  transition:opacity .18s;
+}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+
+/* leaflet tweaks */
+.leaflet-container{background:#0C2A3A; font-family:var(--sans)}
+.leaflet-control-attribution{background:rgba(8,22,29,.82)!important; color:var(--ink3)!important; font-size:10px!important}
+.leaflet-control-attribution a{color:var(--ink2)!important}
+.leaflet-bar a{background:var(--panel)!important; color:var(--ink)!important; border-color:var(--line)!important}
+.leaflet-bar a:hover{background:var(--panel2)!important}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel); color:var(--ink); border:1px solid var(--line)}
+.leaflet-popup-content{margin:9px 12px; font-size:12px; line-height:1.7}
+
+/* mobile */
+@media (max-width:820px){
+  #body{grid-template-columns:1fr; grid-template-rows:1fr auto}
+  #side{
+    border-left:none; border-top:1px solid var(--line);
+    height:min(56vh,440px); max-height:56vh;
+  }
+  #side.collapsed{height:42px}
+  #side.collapsed .pane{display:none}
+  #layers{width:168px; top:8px; right:8px}
+  #top{gap:9px; padding:0 9px}
+  #top .date{display:none}
+}
+#grip{display:none}
+@media (max-width:820px){
+  #grip{
+    display:block; width:100%; background:var(--panel2); border:none; border-bottom:1px solid var(--line);
+    height:20px; font-size:10px; color:var(--ink3); letter-spacing:.2em; padding:0; flex:none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="top">
+    <div class="brand">磯読み<small>ISOYOMI</small></div>
+    <div class="date" id="today"></div>
+    <div class="sp"></div>
+    <span class="net" id="netState">オフライン</span>
+    <button class="btn" id="openBtn">記録を開く</button>
+    <button class="btn" id="saveBtn">保存</button>
+  </div>
+
+  <div id="body">
+    <div style="position:relative">
+      <div id="map"></div>
+      <div id="layers">
+        <div class="lh">レイヤ <button id="layerToggle" title="たたむ">－</button></div>
+        <div class="lbody" id="layerBody"></div>
+      </div>
+    </div>
+
+    <div id="side">
+      <button id="grip">▲ ▼</button>
+      <div id="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-pane="paneSpot">地点</button>
+        <button role="tab" aria-selected="false" data-pane="paneTrip">記録</button>
+        <button role="tab" aria-selected="false" data-pane="paneList">一覧</button>
+      </div>
+
+      <div class="pane" id="paneSpot" data-on>
+        <div class="empty" id="spotEmpty">
+          地図をタップすると、その地点の<br>海岸地形・等深線までの距離・底質・<br>潮位をまとめて出します。
+        </div>
+        <div id="spotBody" hidden></div>
+      </div>
+
+      <div class="pane" id="paneTrip"></div>
+      <div class="pane" id="paneList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="lib/leaflet.js"></script>
+<script src="data/stations.js"></script>
+<script src="data/tide.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   磯読み — 地磯の下見と釣行記録
+   データは data/*.js に同梱（file:// では fetch が使えないので script で読む）
+   ========================================================================= */
+
+const D = window.ISOYOMI_DATA || {};
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+/* ---------------------------------------------------------------- 幾何 */
+const R_EARTH = 6371008.8;
+const rad = d => d * Math.PI / 180;
+
+function metersPerDeg(lat) {
+  return { x: 111320 * Math.cos(rad(lat)), y: 110574 };
+}
+function dist(lat1, lon1, lat2, lon2) {          // 平面近似。数km以内なら十分
+  const m = metersPerDeg((lat1 + lat2) / 2);
+  const dx = (lon2 - lon1) * m.x, dy = (lat2 - lat1) * m.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function distToSeg(plat, plon, alat, alon, blat, blon) {
+  const m = metersPerDeg(plat);
+  const px = plon * m.x, py = plat * m.y;
+  const ax = alon * m.x, ay = alat * m.y;
+  const bx = blon * m.x, by = blat * m.y;
+  const dx = bx - ax, dy = by - ay;
+  const L2 = dx * dx + dy * dy;
+  if (L2 === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function bboxOf(geom, kind) {
+  let n = -90, s = 90, e = -180, w = 180;
+  const eat = p => { if (p[1] > n) n = p[1]; if (p[1] < s) s = p[1]; if (p[0] > e) e = p[0]; if (p[0] < w) w = p[0]; };
+  if (kind === "point") eat(geom);
+  else geom.forEach(part => part.forEach(eat));
+  return [w, s, e, n];
+}
+function bboxHit(b, w, s, e, n) { return !(b[0] > e || b[2] < w || b[1] > n || b[3] < s); }
+function inRing(lat, lon, ring) {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) c = !c;
+  }
+  return c;
+}
+function inPoly(lat, lon, rings) {
+  let hit = false;
+  for (const r of rings) if (inRing(lat, lon, r)) hit = !hit;   // 穴も考慮した even-odd
+  return hit;
+}
+
+/* ---------------------------------------------------------------- データ読込
+   重いので必要になったときだけ script を差し込んで読む */
+const loaded = {}, loading = {};
+function need(key) {
+  if (D[key]) return Promise.resolve(D[key]);
+  if (loading[key]) return loading[key];
+  loading[key] = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "data/" + key + ".js";
+    s.onload = () => { indexLayer(key); res(D[key]); };
+    s.onerror = () => rej(new Error("data/" + key + ".js を読めません"));
+    document.head.appendChild(s);
+  });
+  return loading[key];
+}
+function indexLayer(key) {
+  const d = D[key];
+  if (!d || loaded[key]) return;
+  if (!d.features) { loaded[key] = true; return; }   // sdb.js のような索引なしのデータ
+  const kind = d.kind || "line";
+  d.features.forEach(f => { f._b = bboxOf(f.g, kind); });
+  d._kind = kind;
+  loaded[key] = true;
+}
+["stations", "tide"].forEach(k => { if (D[k]) loaded[k] = true; });
+
+/* 指定範囲に入る地物を拾う */
+function pick(key, w, s, e, n, limit) {
+  const d = D[key];
+  if (!d) return [];
+  const out = [];
+  for (const f of d.features) {
+    if (bboxHit(f._b, w, s, e, n)) { out.push(f); if (limit && out.length >= limit) break; }
+  }
+  return out;
+}
+/* 一番近い地物と、その距離(m) */
+function nearest(key, lat, lon, maxM) {
+  const d = D[key];
+  if (!d) return null;
+  const m = metersPerDeg(lat);
+  const dw = maxM / m.x, dh = maxM / m.y;
+  let best = null, bestD = Infinity;
+  for (const f of d.features) {
+    if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+    let dd = Infinity;
+    if (d._kind === "point") {
+      dd = dist(lat, lon, f.g[1], f.g[0]);
+    } else if (d._kind === "poly") {
+      if (inPoly(lat, lon, f.g)) dd = 0;
+      else for (const ring of f.g) for (let i = 1; i < ring.length; i++)
+        dd = Math.min(dd, distToSeg(lat, lon, ring[i - 1][1], ring[i - 1][0], ring[i][1], ring[i][0]));
+    } else {
+      for (const path of f.g) for (let i = 1; i < path.length; i++)
+        dd = Math.min(dd, distToSeg(lat, lon, path[i - 1][1], path[i - 1][0], path[i][1], path[i][0]));
+    }
+    if (dd < bestD) { bestD = dd; best = f; }
+  }
+  return best && bestD <= maxM ? { f: best, d: bestD } : null;
+}
+
+/* ---------------------------------------------------------------- 地図 */
+const GSI = "https://cyberjapandata.gsi.go.jp/xyz/";
+const ATTR_GSI = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>';
+
+const bases = {
+  "航空写真": L.tileLayer(GSI + "seamlessphoto/{z}/{x}/{y}.jpg", { maxZoom: 18, maxNativeZoom: 18, attribution: ATTR_GSI }),
+  "淡色地図": L.tileLayer(GSI + "pale/{z}/{x}/{y}.png", { maxZoom: 18, attribution: ATTR_GSI }),
+  "標準地図": L.tileLayer(GSI + "std/{z}/{x}/{y}.png", { maxZoom: 18, attribution: ATTR_GSI })
+};
+const bathyTiles = L.tileLayer(
+  "https://www.msil.go.jp/server/rest/services/msil-o/basemap_bathymetry/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 13, opacity: .55, attribution: '海しる（海上保安庁）' });
+
+const map = L.map("map", {
+  center: [31.60, 130.30], zoom: 9, zoomControl: true,
+  preferCanvas: true, layers: [bases["航空写真"]]
+});
+L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
+const canvasR = L.canvas({ padding: .3 });
+const drawPane = L.layerGroup().addTo(map);
+
+/* ---------------------------------------------------------------- レイヤ定義 */
+const CSSV = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const LAYERS = [
+  { key: "coast_iso", label: "地磯の海岸線", color: "#E5AC44", on: true, minZ: 9, type: "line",
+    style: f => ({ color: (f.r === "1A" || f.r === "1B") ? "#E5AC44" : (f.r === "2" ? "#E5793F" : "#B98A5A"),
+                   weight: 3, opacity: .95 }),
+    pop: f => `<b>${f.f || "海岸"}</b>` + (f.n ? "<br>" + f.n : "") + (f.a ? `<br><span class="muted">${f.a}</span>` : "") + `<br><span class="muted">ESI ${f.r}</span>` },
+  { key: "coast_other", label: "砂浜・人工岸", color: "#4E7686", on: false, minZ: 11, type: "line",
+    style: () => ({ color: "#4E7686", weight: 2, opacity: .8 }),
+    pop: f => `${f.f || ""}` + (f.a ? `<br><span class="muted">${f.a}</span>` : "") },
+  { key: "depth", label: "等深線", color: "#6FC0D0", on: true, minZ: 8, type: "line",
+    style: f => ({ color: f.a.depth <= 20 ? "#8FD8DE" : f.a.depth <= 50 ? "#6FC0D0" : "#3C7E92",
+                   weight: f.a.depth <= 20 ? 1.8 : 1.2, opacity: .85, dashArray: f.a.depth <= 20 ? null : "5 4" }),
+    pop: f => `<b>${f.a.depth}m 等深線</b><br><span class="muted">J-EGG500ほか。磯際の細かい地形は表していない</span>` },
+  { key: "seabed", label: "底質", color: "#C9A227", on: false, minZ: 11, type: "point",
+    style: () => ({ radius: 3.2, color: "#D9B441", weight: 1, fillColor: "#D9B441", fillOpacity: .55 }),
+    pop: f => `<b>底質</b><br>${f.a.nature}` },
+  { key: "weed", label: "藻場", color: "#6FB183", on: false, minZ: 10, type: "poly",
+    style: () => ({ color: "#6FB183", weight: 1, fillColor: "#6FB183", fillOpacity: .22 }),
+    pop: f => `<b>${f.a["タイプ"] || "藻場"}</b>` + (f.a["優占種"] ? "<br>優占種: " + f.a["優占種"] : "") + (f.a["地区名"] ? `<br><span class="muted">${f.a["地区名"]}</span>` : "") },
+  { key: "obstruction", label: "魚礁・海底障害物", color: "#E28A6C", on: false, minZ: 11, type: "point",
+    style: f => ({ radius: 4, color: /魚礁/.test(f.a.field_001 || "") ? "#6FB183" : "#E28A6C",
+                   weight: 1.4, fillOpacity: .35 }),
+    pop: f => `<b>${f.a.field_001 || "海底障害物"}</b>` + (f.a.field_002 ? `<br><span class="muted">${f.a.field_002}</span>` : "") },
+  { key: "coral", label: "サンゴ礁", color: "#D98CA8", on: false, minZ: 10, type: "poly",
+    style: () => ({ color: "#D98CA8", weight: 1, fillColor: "#D98CA8", fillOpacity: .2 }), pop: () => "<b>サンゴ礁</b>" },
+  { key: "fishery", label: "漁業権区域", color: "#8A7FD9", on: false, minZ: 9, type: "poly",
+    style: () => ({ color: "#8A7FD9", weight: 1, fillColor: "#8A7FD9", fillOpacity: .12, dashArray: "4 3" }),
+    pop: f => `<b>${f.t}</b><br><span class="muted">区域内＝釣り禁止ではない。県条例・漁協ルールを別途確認</span>` },
+  { key: "light", label: "灯台", color: "#E5E0A4", on: false, minZ: 11, type: "point",
+    style: () => ({ radius: 3, color: "#E5E0A4", weight: 1.4, fillOpacity: .5 }),
+    pop: f => `<b>${f.a["名称"] || "灯台"}</b>` },
+  { key: "port", label: "漁港", color: "#7FA8C9", on: false, minZ: 11, type: "point",
+    style: () => ({ radius: 3.4, color: "#7FA8C9", weight: 1.2, fillOpacity: .4 }),
+    pop: f => `<b>${f.a["漁港名"] || f.a["名称"] || "漁港"}</b>` }
+];
+const LMAP = {}; LAYERS.forEach(l => LMAP[l.key] = l);
+
+/* レイヤ一覧のUI */
+const layerBody = $("#layerBody");
+LAYERS.forEach(l => {
+  const row = document.createElement("div");
+  row.className = "lrow";
+  row.innerHTML =
+    `<input type="checkbox" id="lay_${l.key}" ${l.on ? "checked" : ""}>` +
+    `<label for="lay_${l.key}"><i style="background:${l.color}"></i>${l.label}</label>` +
+    `<span class="st" id="st_${l.key}"></span>`;
+  layerBody.appendChild(row);
+  $("#lay_" + l.key, row).addEventListener("change", e => {
+    l.on = e.target.checked;
+    if (l.on) need(l.key).then(redraw).catch(err => toast(err.message));
+    else redraw();
+  });
+});
+layerBody.insertAdjacentHTML("beforeend", '<div class="lsep"></div>');
+Object.keys(bases).forEach((name, i) => {
+  const row = document.createElement("div");
+  row.className = "lrow";
+  row.innerHTML = `<input type="radio" name="base" id="b_${i}" ${i === 0 ? "checked" : ""}>` +
+                  `<label for="b_${i}">${name}</label>`;
+  layerBody.appendChild(row);
+  $("input", row).addEventListener("change", () => {
+    Object.values(bases).forEach(b => map.removeLayer(b));
+    bases[name].addTo(map).bringToBack();
+  });
+});
+layerBody.insertAdjacentHTML("beforeend",
+  '<div class="lrow"><input type="checkbox" id="b_bathy"><label for="b_bathy">海底地形図を重ねる</label></div>');
+$("#b_bathy").addEventListener("change", e => {
+  if (e.target.checked) bathyTiles.addTo(map); else map.removeLayer(bathyTiles);
+});
+/* 衛星推定の浅場。画像を重ねるだけなので他のレイヤとは別扱い */
+const sdbGroup = L.layerGroup();
+let sdbReady = false;
+function showSdb(on) {
+  if (!on) { map.removeLayer(sdbGroup); return; }
+  const add = () => {
+    const d = D.sdb;
+    if (!d || !d.areas || !d.areas.length) { toast("浅場データがまだありません"); return; }
+    if (!sdbReady) {
+      d.areas.forEach(a => L.imageOverlay(a.file, a.bounds,
+        { opacity: .8, interactive: false, className: "sdb-img" }).addTo(sdbGroup));
+      const leg = document.getElementById("sdbLeg");
+      if (leg) {
+        leg.innerHTML = d.classes.map(c => `<div><i style="background:${c.color}"></i>${c.label}</div>`).join("")
+          + `<div style="margin-top:3px">対象 ${d.areas.map(a => a.label).join("・")}</div>`;
+        leg.hidden = false;
+      }
+      sdbReady = true;
+    }
+    sdbGroup.addTo(map);
+  };
+  if (D.sdb) add();
+  else need("sdb").then(add).catch(() => toast("data/sdb.js がありません（tools/fetch_sdb.py で作れます）"));
+}
+layerBody.insertAdjacentHTML("beforeend",
+  '<div class="lsep"></div>' +
+  '<div class="lrow"><input type="checkbox" id="b_sdb">' +
+  '<label for="b_sdb"><i style="background:#8FD8DE"></i>浅場（衛星推定）</label></div>' +
+  '<div class="sdbleg" id="sdbLeg" hidden></div>');
+$("#b_sdb").addEventListener("change", e => showSdb(e.target.checked));
+
+$("#layerToggle").addEventListener("click", () => {
+  const el = $("#layers");
+  el.classList.toggle("min");
+  $("#layerToggle").textContent = el.classList.contains("min") ? "＋" : "－";
+});
+
+/* ---------------------------------------------------------------- 描画 */
+let redrawTimer = null;
+function redraw() {
+  clearTimeout(redrawTimer);
+  redrawTimer = setTimeout(doRedraw, 60);
+}
+function doRedraw() {
+  drawPane.clearLayers();
+  const z = map.getZoom(), b = map.getBounds();
+  const w = b.getWest(), s = b.getSouth(), e = b.getEast(), n = b.getNorth();
+  for (const l of LAYERS) {
+    const st = $("#st_" + l.key);
+    if (!l.on) { st.textContent = ""; continue; }
+    if (!D[l.key]) { st.textContent = "…"; need(l.key).then(redraw).catch(() => { st.textContent = "×"; }); continue; }
+    if (z < l.minZ) { st.textContent = "z" + l.minZ; continue; }
+    const feats = pick(l.key, w, s, e, n, 3000);
+    st.textContent = feats.length ? String(feats.length) : "0";
+    for (const f of feats) {
+      let lay;
+      if (l.type === "point") lay = L.circleMarker([f.g[1], f.g[0]], Object.assign({ renderer: canvasR }, l.style(f)));
+      else if (l.type === "poly") lay = L.polygon(f.g.map(r => r.map(p => [p[1], p[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
+      else lay = L.polyline(f.g.map(p => p.map(q => [q[1], q[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
+      if (l.pop) lay.bindPopup(l.pop(f));
+      drawPane.addLayer(lay);
+    }
+  }
+}
+map.on("moveend zoomend", redraw);
+
+/* 起動時に既定オンのレイヤを読む */
+Promise.all(LAYERS.filter(l => l.on).map(l => need(l.key).catch(e => toast(e.message)))).then(redraw);
+
+/* ---------------------------------------------------------------- 潮位 */
+const STATIONS = (D.stations && D.stations.features) || [];
+const TIDE = D.tide || { days: {} };
+
+function nearestStation(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const s of STATIONS) {
+    const d = dist(lat, lon, s.lat, s.lon);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best ? { s: best, d: bd } : null;
+}
+function mmdd(dt) {
+  return String(dt.getMonth() + 1).padStart(2, "0") + String(dt.getDate()).padStart(2, "0");
+}
+function tideDay(code, dt) {
+  const y = (TIDE.days || {})[code];
+  return y ? y[mmdd(dt)] : null;
+}
+function hhmm(min) { return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0"); }
+
+/* 毎時値を線形補間して任意時刻の潮位を出す */
+function tideAt(day, dt) {
+  if (!day) return null;
+  const h = dt.getHours() + dt.getMinutes() / 60;
+  const i = Math.floor(h), t = h - i;
+  const a = day.h[Math.min(i, 23)], b = day.h[Math.min(i + 1, 23)];
+  return a + (b - a) * t;
+}
+function tideRateAt(day, dt) {           // cm/h。流れの目安
+  if (!day) return null;
+  const i = Math.min(Math.max(dt.getHours(), 0), 22);
+  return day.h[i + 1] - day.h[i];
+}
+
+function drawTide(day, dt, svg) {
+  const W = 320, H = 120, L0 = 26, R0 = 8, T0 = 8, curveH = 62, gap = 8, barH = 26;
+  const hs = day.h, ds = [];
+  for (let i = 0; i < 23; i++) ds.push(hs[i + 1] - hs[i]);
+  const lo = Math.min(...hs), hi = Math.max(...hs);
+  const pad = Math.max(10, (hi - lo) * .12);
+  const y0 = lo - pad, y1 = hi + pad;
+  const X = i => L0 + (W - L0 - R0) * i / 23;
+  const Y = v => T0 + curveH * (1 - (v - y0) / (y1 - y0));
+  const barTop = T0 + curveH + gap, mid = barTop + barH / 2;
+  const maxD = Math.max(10, ...ds.map(Math.abs));
+  const ink3 = CSSV("--ink3"), chart = CSSV("--chart"), shoal = CSSV("--shoal"), buoy = CSSV("--buoy"), line = CSSV("--line");
+  let o = "";
+  // 目盛
+  [lo, hi].forEach(v => {
+    o += `<line x1="${L0}" y1="${Y(v)}" x2="${W - R0}" y2="${Y(v)}" stroke="${line}" stroke-width="1"/>`;
+    o += `<text x="${L0 - 4}" y="${Y(v) + 3}" text-anchor="end" fill="${ink3}" font-family="Consolas,monospace" font-size="8">${v}</text>`;
+  });
+  // 潮位曲線
+  const pts = hs.map((v, i) => X(i) + "," + Y(v)).join(" ");
+  o += `<polygon points="${L0},${Y(y0)} ${pts} ${W - R0},${Y(y0)}" fill="${shoal}" fill-opacity=".13"/>`;
+  o += `<polyline points="${pts}" fill="none" stroke="${chart}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  // 満干潮
+  (day.H || []).forEach(p => { o += `<circle cx="${X(p[0] / 60)}" cy="${Y(p[1])}" r="2.6" fill="${chart}"/>`; });
+  (day.L || []).forEach(p => { o += `<circle cx="${X(p[0] / 60)}" cy="${Y(p[1])}" r="2.6" fill="none" stroke="${chart}" stroke-width="1.4"/>`; });
+  // 変化率
+  o += `<line x1="${L0}" y1="${mid}" x2="${W - R0}" y2="${mid}" stroke="${line}" stroke-width="1"/>`;
+  const peak = ds.reduce((m, v, i) => Math.abs(v) > Math.abs(ds[m]) ? i : m, 0);
+  ds.forEach((v, i) => {
+    const hgt = Math.abs(v) / maxD * (barH / 2);
+    o += `<rect x="${X(i) + 1.4}" y="${v >= 0 ? mid - hgt : mid}" width="${(W - L0 - R0) / 24 - 2.8}" ` +
+         `height="${Math.max(hgt, .7)}" fill="${i === peak ? buoy : shoal}" fill-opacity="${i === peak ? 1 : .5}"/>`;
+  });
+  o += `<text x="${L0}" y="${barTop - 1}" fill="${ink3}" font-family="Consolas,monospace" font-size="8" letter-spacing=".06em">変化率 cm/h</text>`;
+  // 今
+  const nowX = X(dt.getHours() + dt.getMinutes() / 60);
+  o += `<line x1="${nowX}" y1="${T0}" x2="${nowX}" y2="${barTop + barH}" stroke="${buoy}" stroke-width="1" stroke-dasharray="3 2"/>`;
+  // 時刻
+  [0, 6, 12, 18, 23].forEach(i => {
+    o += `<text x="${X(i)}" y="${barTop + barH + 10}" text-anchor="middle" fill="${ink3}" font-family="Consolas,monospace" font-size="8">${i}</text>`;
+  });
+  svg.setAttribute("viewBox", `0 0 ${W} ${barTop + barH + 14}`);
+  svg.innerHTML = o;
+}
+
+/* ---------------------------------------------------------------- 流れの効き
+   流速そのものは出せない。出しているのは「流れが出やすい条件が揃っているか」。
+   干満差ではなく潮位の変化率を使うのが要点。大潮でも満潮・干潮の前後は止まる。 */
+const FLOW_W = { tide: .35, narrow: .30, terrain: .20, current: .15 };
+const RATE_MAX = {};
+
+function annualMaxRate(code) {          // その験潮所の年間最大変化率。大潮小潮を測る物差しになる
+  if (RATE_MAX[code] != null) return RATE_MAX[code];
+  const y = (TIDE.days || {})[code] || {};
+  let mx = 1;
+  for (const k in y) {
+    const h = y[k].h;
+    for (let i = 0; i < 23; i++) { const v = Math.abs(h[i + 1] - h[i]); if (v > mx) mx = v; }
+  }
+  return (RATE_MAX[code] = mx);
+}
+
+/* 周りの海岸線をローカル平面(m)の線分にして集める。砂浜も護岸も陸なので両方使う */
+function coastSegs(lat, lon, radiusM) {
+  const m = metersPerDeg(lat);
+  const dw = radiusM / m.x, dh = radiusM / m.y;
+  const segs = [];
+  for (const key of ["coast_iso", "coast_other"]) {
+    const d = D[key];
+    if (!d) continue;
+    for (const f of d.features) {
+      if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+      for (const path of f.g) {
+        for (let i = 1; i < path.length; i++) {
+          const a = path[i - 1], b = path[i];
+          segs.push([(a[0] - lon) * m.x, (a[1] - lat) * m.y, (b[0] - lon) * m.x, (b[1] - lat) * m.y]);
+        }
+      }
+    }
+  }
+  return segs;
+}
+
+/* (ox,oy) から (dx,dy) 方向に飛ばして、最初に陸へ当たるまでの距離 */
+function rayCast(ox, oy, dx, dy, segs, maxM) {
+  let best = maxM;
+  for (const g of segs) {
+    const ex = g[2] - g[0], ey = g[3] - g[1];
+    const den = dx * ey - dy * ex;
+    if (den > -1e-9 && den < 1e-9) continue;
+    const qx = g[0] - ox, qy = g[1] - oy;
+    const t = (qx * ey - qy * ex) / den;
+    if (t <= 0 || t >= best) continue;
+    const u = (qx * dy - qy * dx) / den;
+    if (u >= 0 && u <= 1) best = t;
+  }
+  return best;
+}
+
+const RAYS = 36, RAY_MAX = 3000;
+function geometry(lat, lon) {
+  const segs = coastSegs(lat, lon, RAY_MAX);
+  if (!segs.length) return null;
+  const cast = (ox, oy) => {
+    const h = [];
+    for (let i = 0; i < RAYS; i++) {
+      const b = 2 * Math.PI * i / RAYS;
+      h.push(rayCast(ox, oy, Math.sin(b), Math.cos(b), segs, RAY_MAX));
+    }
+    return h;
+  };
+  const hit = cast(0, 0);
+
+  /* 岬度：400m以内に陸がある方角の割合。少ないほど突き出ている（地点そのもので測る） */
+  const landFrac = hit.filter(h => h < 400).length / RAYS;
+  const cape = Math.max(0, Math.min(1, (0.55 - landFrac) / 0.42));
+
+  /* 狭窄度は「目の前の海が絞られているか」。岸の上で測ると陸側のレイが即当たって
+     どこでも狭くなってしまうので、いったん海側へ出てから測る */
+  let sx = 0, sy = 0;
+  for (let i = 0; i < RAYS; i++) {
+    if (hit[i] < 300) { const b = 2 * Math.PI * i / RAYS; sx += Math.sin(b); sy += Math.cos(b); }
+  }
+  const landLen = Math.hypot(sx, sy);
+  let ox = 0, oy = 0, offset = 0, seaward = null;
+  if (landLen > 1e-6) {
+    const ux = -sx / landLen, uy = -sy / landLen;          // 陸の平均方向の逆＝沖
+    seaward = (Math.atan2(ux, uy) * 180 / Math.PI + 360) % 360;
+    offset = Math.min(180, rayCast(0, 0, ux, uy, segs, RAY_MAX) * 0.5);
+    ox = ux * offset; oy = uy * offset;
+  }
+  const hit2 = offset > 20 ? cast(ox, oy) : hit;
+
+  let width = Infinity, axis = 0;
+  for (let i = 0; i < RAYS / 2; i++) {
+    const a = hit2[i], b = hit2[i + RAYS / 2];
+    if (a >= RAY_MAX || b >= RAY_MAX) continue;            // 片側が開いていれば水道ではない
+    if (a < 25 || b < 25) continue;                        // 岩の隙間は水道ではない
+    if (a + b < width) { width = a + b; axis = 360 * i / RAYS; }
+  }
+  const narrow = width === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (width - 200) / 2600));
+  return { narrow, cape, width, landFrac, axis, offset, seaward };
+}
+
+/* 20m→50m の間隔。狭いほど急に落ちている＝瀬の縁で流れが増す */
+function steepness(dd) {
+  const a = dd[20], b = dd[50];
+  if (a === undefined || b === undefined || a === Infinity || b === Infinity) return null;
+  return Math.max(0, Math.min(1, 1 - (b - a) / 2500));
+}
+
+function flowScore(geo, steep, day, hourFrac, code, current) {
+  const parts = {};
+  if (day && code) {
+    const i = Math.min(Math.max(Math.floor(hourFrac), 0), 22);
+    const rate = Math.abs(day.h[i + 1] - day.h[i]);
+    parts.tide = Math.min(1, rate / (0.85 * annualMaxRate(code)));
+  }
+  if (geo) {
+    parts.narrow = geo.narrow;
+    const t = [geo.cape];
+    if (steep != null) t.push(steep);
+    parts.terrain = t.reduce((a, b) => a + b, 0) / t.length;
+  }
+  if (current && current.v != null) {
+    let c = Math.min(1, current.v / 0.7);
+    if (current.dir != null && geo) {              // 水道の軸に沿った流れほど効く
+      c *= 0.5 + 0.5 * Math.abs(Math.cos((current.dir - geo.axis) * Math.PI / 180));
+    }
+    parts.current = c;
+  }
+  let sum = 0, wsum = 0;
+  for (const k in FLOW_W) if (parts[k] != null) { sum += FLOW_W[k] * parts[k]; wsum += FLOW_W[k]; }
+  return { score: wsum ? sum / wsum : null, parts };
+}
+
+const FLOW_LABEL = v => v == null ? "—" : v >= .72 ? "よく効く" : v >= .52 ? "効く" : v >= .32 ? "ふつう" : "弱い";
+
+let lastAnalysis = null;
+function renderFlow() {
+  const box = document.getElementById("flowBox");
+  if (!box || !lastAnalysis) return;
+  const { geo, steep, day, code } = lastAnalysis;
+  const now = new Date();
+  const cur = (lastMarine && cursor && Math.abs(lastMarine.lat - cursor.lat) < 1e-6
+               && Math.abs(lastMarine.lon - cursor.lon) < 1e-6)
+    ? { v: lastMarine.current, dir: lastMarine.currentDir } : null;
+  const f = flowScore(geo, steep, day, now.getHours() + now.getMinutes() / 60, code, cur);
+  const hourly = [];
+  for (let h = 0; h < 24; h++) hourly.push(flowScore(geo, steep, day, h, code, cur).score || 0);
+  const pk = hourly.indexOf(Math.max(...hourly));
+  const pct = f.score == null ? null : Math.round(f.score * 100);
+  const COL = { tide: "var(--chart)", narrow: "var(--shoal)", terrain: "var(--kelp)", current: "var(--buoy)" };
+  const bar = (k, label) => {
+    const v = f.parts[k];
+    return `<div class="fb${v == null ? " off" : ""}"><span class="k">${label}</span>` +
+      `<span class="t"><i style="width:${v == null ? 0 : Math.round(v * 100)}%;background:${COL[k]}"></i></span>` +
+      `<span class="v">${v == null ? "—" : v.toFixed(2)}</span></div>`;
+  };
+  box.innerHTML = `
+    <div class="flow"><span class="num">${pct == null ? "—" : pct}</span>
+      <span><span class="lab">${FLOW_LABEL(f.score)}</span>
+      <span class="sub">いまの時刻で。今日の山は <b style="color:var(--buoy)">${pk}時台</b></span></span></div>
+    ${bar("tide", "潮の動き")}${bar("narrow", "水道の狭さ")}
+    ${bar("terrain", "岬・瀬の張り")}${bar("current", "海流モデル")}
+    <div class="hours">${hourly.map((v, h) =>
+      `<span class="${h === pk ? "pk" : ""}${h === now.getHours() ? " now" : ""}" ` +
+      `style="height:${Math.max(6, v * 100)}%" title="${h}時 ${Math.round(v * 100)}"></span>`).join("")}</div>
+    <div class="hourlab"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
+    <div class="hintline" style="margin-top:8px">
+      ${geo ? `目の前の海の一番狭い横断 ${geo.width === Infinity ? "3km以内で絞られていない" : Math.round(geo.width) + " m"}` +
+              `（沖へ${Math.round(geo.offset)}m出て測定）／400m以内に陸がある方角 ${Math.round(geo.landFrac * 100)}%` : "近くに海岸線データがない"}<br>
+      <b>これは流速ではない。</b>流れが出やすい条件が揃っているかを並べただけ。
+      ${cur ? "海流モデルを含む" : "「波・風・海流を取る」を押すと海流モデルが加わる"}<span class="tag est">推定</span></div>`;
+}
+
+/* ---------------------------------------------------------------- 地点の解析 */
+let cursor = null, cursorMarker = null;
+const DEPTHS = [20, 50, 100, 150, 200];
+
+async function analyze(lat, lon) {
+  cursor = { lat, lon };
+  try {
+    history.replaceState(null, "", "#" + lat.toFixed(5) + "," + lon.toFixed(5) + "," + map.getZoom());
+  } catch (e) { /* file:// では失敗することがある。地点表示には影響しない */ }
+  if (cursorMarker) map.removeLayer(cursorMarker);
+  cursorMarker = L.circleMarker([lat, lon], {
+    radius: 7, color: "#E5AC44", weight: 2, fillColor: "#E5AC44", fillOpacity: .3
+  }).addTo(map);
+
+  $("#spotEmpty").hidden = true;
+  const box = $("#spotBody");
+  box.hidden = false;
+  box.innerHTML = '<div class="empty">調べています…</div>';
+
+  await Promise.all(["coast_iso", "coast_other", "depth", "seabed", "weed", "obstruction", "fishery"]
+    .map(k => need(k).catch(() => null)));
+
+  /* 海岸 */
+  const coast = nearest("coast_iso", lat, lon, 1200);
+  const coastOther = coast ? null : nearest("coast_other", lat, lon, 1200);
+
+  /* 等深線までの距離 */
+  const dd = {};
+  const dl = D.depth;
+  if (dl) {
+    const m = metersPerDeg(lat), span = 30000;
+    const dw = span / m.x, dh = span / m.y;
+    for (const f of dl.features) {
+      const dep = f.a.depth;
+      if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+      let best = dd[dep] === undefined ? Infinity : dd[dep];
+      for (const path of f.g) for (let i = 1; i < path.length; i++) {
+        const d2 = distToSeg(lat, lon, path[i - 1][1], path[i - 1][0], path[i][1], path[i][0]);
+        if (d2 < best) best = d2;
+      }
+      dd[dep] = best;
+    }
+  }
+
+  const seabed = nearest("seabed", lat, lon, 4000);
+  const weed = nearest("weed", lat, lon, 1500);
+  const obst = nearest("obstruction", lat, lon, 1500);
+  const fish = [];
+  if (D.fishery) for (const f of D.fishery.features) {
+    if (bboxHit(f._b, lon, lat, lon, lat) && inPoly(lat, lon, f.g)) fish.push(f.t);
+  }
+
+  /* 潮位 */
+  const st = nearestStation(lat, lon);
+  const now = new Date();
+  const day = st ? tideDay(st.s.code, now) : null;
+
+  /* 描画 */
+  const fmtM = v => v === undefined || v === Infinity ? "—" : (v < 1000 ? Math.round(v) + " m" : (v / 1000).toFixed(1) + " km");
+  const maxBar = 3000;
+  let html = "";
+
+  html += `<div class="sec"><h3>地点</h3><dl class="kv">
+    <dt>座標</dt><dd>${lat.toFixed(5)}, ${lon.toFixed(5)}</dd>
+    <dt>海岸地形</dt><dd>${coast ? esc(coast.f.f) + `<span class="tag meas">海保</span>` :
+      (coastOther ? `<span class="muted">${esc(coastOther.f.f)}</span>` : '<span class="muted">近くに海岸線データなし</span>')}</dd>`;
+  if (coast) {
+    html += `<dt>ESI</dt><dd>${esc(coast.f.r || "-")}<em>${coast.d < 60 ? "この地点上" : Math.round(coast.d) + "m 先"}</em></dd>`;
+    if (coast.f.n) html += `<dt>海岸名</dt><dd>${esc(coast.f.n)}</dd>`;
+    if (coast.f.a) html += `<dt>所在地</dt><dd>${esc(coast.f.a)}</dd>`;
+  }
+  html += `</dl>
+    <div class="rowbtns"><button class="btn sm" id="mkSpot">この地点を登録</button>
+    <button class="btn sm" id="copyLL">座標をコピー</button></div></div>`;
+
+  html += `<div class="sec"><h3>深さの見込み</h3>`;
+  DEPTHS.forEach(d => {
+    const v = dd[d];
+    const pct = v === undefined || v === Infinity ? 0 : Math.max(2, 100 - Math.min(100, v / maxBar * 100));
+    html += `<div class="dbar"><span class="d">${d}m</span><span class="t"><i style="width:${pct}%"></i></span><span class="v">${fmtM(v)}</span></div>`;
+  });
+  html += `<div class="hintline" style="margin-top:7px">等深線までの水平距離。<b>近いほど急深</b>。
+    元データは20m刻みなので磯際の起伏は表していない<span class="tag est">推定の材料</span></div>`;
+  if (coast && coast.f.s != null) {
+    const sl = coast.f.s;
+    html += `<dl class="kv" style="margin-top:9px">
+      <dt>陸の勾配</dt><dd>${sl}°<span class="tag meas">DEM</span><em>背後の高さ ${coast.f.hm} m</em></dd>
+    </dl><div class="hintline">${
+      sl >= 35 ? "<b>崖がそのまま海へ落ちている。</b>磯際から水深がある見込み"
+    : sl >= 20 ? "そこそこ立った斜面。水中にも続いている見込み"
+    : "なだらかな斜面。磯際は浅い見込み"}</div>`;
+  }
+  html += `<dl class="kv" style="margin-top:9px">
+    <dt>底質</dt><dd>${seabed ? esc(seabed.f.a.nature) + `<em>${Math.round(seabed.d)}m先</em>` : '<span class="muted">近傍になし</span>'}</dd>
+    <dt>藻場</dt><dd>${weed ? esc(weed.f.a["タイプ"] || "藻場") + `<em>${weed.d < 30 ? "この地点" : Math.round(weed.d) + "m先"}</em>` : '<span class="muted">1.5km以内になし</span>'}</dd>
+    <dt>障害物</dt><dd>${obst ? esc(obst.f.a.field_001 || "") + `<em>${Math.round(obst.d)}m先</em>` : '<span class="muted">1.5km以内になし</span>'}</dd>
+  </dl></div>`;
+
+  if (day) {
+    const cm = tideAt(day, now), rate = tideRateAt(day, now);
+    const ds = []; for (let i = 0; i < 23; i++) ds.push(day.h[i + 1] - day.h[i]);
+    const pk = ds.reduce((m, v, i) => Math.abs(v) > Math.abs(ds[m]) ? i : m, 0);
+    const range = Math.max(...day.h) - Math.min(...day.h);
+    html += `<div class="sec"><h3>潮位 — ${esc(st.s.name)}</h3>
+      <svg id="tideSvg"></svg>
+      <div class="tstat">
+        <div><span>いま </span>${Math.round(cm)} cm</div>
+        <div><span>変化 </span>${rate > 0 ? "+" : ""}${rate} cm/h</div>
+        <div><span>満潮 </span>${(day.H || []).map(p => hhmm(p[0])).join(" ") || "—"}</div>
+        <div><span>干潮 </span>${(day.L || []).map(p => hhmm(p[0])).join(" ") || "—"}</div>
+        <div><span>干満差 </span>${range} cm</div>
+        <div style="color:var(--buoy)"><span>最も動く </span>${pk}時台 ${ds[pk] > 0 ? "+" : ""}${ds[pk]}</div>
+      </div>
+      <div class="hintline" style="margin-top:7px">験潮所まで ${(st.d / 1000).toFixed(1)} km。
+      観測基準面 ${st.s.datum_cm != null ? st.s.datum_cm + " cm" : "不明"}<span class="tag meas">気象庁</span><br>
+      大潮でも<b>満潮・干潮の前後は止まる</b>。効くのは変化率のほう</div></div>`;
+  }
+
+  const geo = geometry(lat, lon);
+  const steep = steepness(dd);
+  lastAnalysis = { geo, steep, day, code: st && st.s.code };
+  if (day || geo) {
+    html += `<div class="sec"><h3>流れの効き（推定）</h3><div id="flowBox"></div></div>`;
+  }
+
+  html += `<div class="sec"><h3>海況（要通信）</h3><div id="marine"><span class="muted">取得していません</span></div>
+    <div class="rowbtns"><button class="btn sm" id="getMarine">波・風・海流を取る</button></div></div>`;
+
+  if (fish.length) {
+    html += `<div class="caution"><b>${fish.join("・")}の区域内。</b>
+      区域内＝釣り禁止ではないが、採捕できる魚種や仕掛けが県条例・漁協ルールで制限されることがある。行く前に確認すること。</div>`;
+  }
+  html += `<div class="caution"><b>安全の判断にこの画面を使わないこと。</b>
+    波高予報は磯際の砕波と這い上がりを表さない。満潮時の孤立、崖、私有地は一切判定していない。</div>`;
+
+  const trips = store.trips.filter(t => dist(lat, lon, t.lat, t.lon) < 300);
+  html += `<div class="sec"><h3>この付近の記録</h3>` +
+    (trips.length ? trips.map(tripLine).join("") : '<span class="muted">まだありません</span>') +
+    `<div class="rowbtns"><button class="btn sm pri" id="addTrip">釣行を記録する</button></div></div>`;
+
+  box.innerHTML = html;
+  if (day) drawTide(day, now, $("#tideSvg"));
+  renderFlow();
+
+  $("#mkSpot").onclick = () => addSpot(lat, lon);
+  $("#copyLL").onclick = () => {
+    const s = lat.toFixed(5) + "," + lon.toFixed(5);
+    (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(
+      () => toast("コピーしました " + s), () => toast(s));
+  };
+  $("#getMarine").onclick = () => fetchMarine(lat, lon);
+  $("#addTrip").onclick = () => { showTab("paneTrip"); tripForm(lat, lon, st, day); };
+}
+map.on("click", e => analyze(e.latlng.lat, e.latlng.lng));
+
+/* #緯度,経度[,ズーム] で直接その地点を開ける */
+function readHash() {
+  const m = /^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+))?/.exec(location.hash || "");
+  if (!m) return false;
+  const lat = +m[1], lon = +m[2], z = m[3] ? +m[3] : 15;
+  map.setView([lat, lon], z);
+  analyze(lat, lon);
+  return true;
+}
+window.addEventListener("hashchange", readHash);
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+/* ---------------------------------------------------------------- 海況（オンライン時） */
+const DIRS = ["北", "北北東", "北東", "東北東", "東", "東南東", "南東", "南南東", "南", "南南西", "南西", "西南西", "西", "西北西", "北西", "北北西"];
+const dirName = d => DIRS[Math.round(((d % 360) + 360) % 360 / 22.5) % 16];
+
+async function fetchMarine(lat, lon) {
+  const box = $("#marine");
+  box.innerHTML = '<span class="muted">取得中…</span>';
+  const q = `latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&timezone=Asia%2FTokyo&forecast_days=2`;
+  try {
+    const [m, w] = await Promise.all([
+      fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,ocean_current_velocity,ocean_current_direction`).then(r => r.json()),
+      fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m`).then(r => r.json())
+    ]);
+    const i = nowIndex(m.hourly && m.hourly.time);
+    const j = nowIndex(w.hourly && w.hourly.time);
+    const g = (o, k, idx) => (o.hourly && o.hourly[k] && o.hourly[k][idx] != null) ? o.hourly[k][idx] : null;
+    const wv = g(m, "wave_height", i), wp = g(m, "wave_period", i), wd = g(m, "wave_direction", i);
+    const sw = g(m, "swell_wave_height", i), sp = g(m, "swell_wave_period", i);
+    const cv = g(m, "ocean_current_velocity", i), cd = g(m, "ocean_current_direction", i);
+    const ws = g(w, "wind_speed_10m", j), wdir = g(w, "wind_direction_10m", j), gu = g(w, "wind_gusts_10m", j);
+    lastMarine = { wave: wv, wavePeriod: wp, waveDir: wd, swell: sw, wind: ws, windDir: wdir,
+                   gust: gu, current: cv, currentDir: cd, lat: lat, lon: lon, at: new Date().toISOString() };
+    renderFlow();
+    box.innerHTML = `<dl class="kv">
+      <dt>波</dt><dd>${fmtNum(wv, "m")} / ${fmtNum(wp, "s")}<em>${wd != null ? dirName(wd) + "から" : ""}</em><span class="tag fc">予報</span></dd>
+      <dt>うねり</dt><dd>${fmtNum(sw, "m")} / ${fmtNum(sp, "s")}</dd>
+      <dt>風</dt><dd>${fmtNum(ws && ws / 3.6, "m/s")}<em>${wdir != null ? dirName(wdir) : ""}${gu ? " 最大" + (gu / 3.6).toFixed(0) : ""}</em></dd>
+      <dt>海流</dt><dd>${fmtNum(cv, "m/s")}<em>${cd != null ? dirName(cd) + "へ" : ""}</em></dd>
+    </dl>
+    <div class="hintline" style="margin-top:6px">沖合のモデル値。<b>磯際の流れとは別物</b>。海流は潮汐流を含んでいない</div>`;
+  } catch (err) {
+    box.innerHTML = '<span class="warn">取れませんでした。圏外か、通信が通っていません。</span>';
+  }
+}
+let lastMarine = null;
+function fmtNum(v, u) { return v == null ? "—" : (Math.round(v * 10) / 10) + " " + u; }
+function nowIndex(times) {
+  if (!times) return 0;
+  const now = new Date();
+  const key = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" +
+              String(now.getDate()).padStart(2, "0") + "T" + String(now.getHours()).padStart(2, "0") + ":00";
+  const i = times.indexOf(key);
+  return i < 0 ? 0 : i;
+}
+
+/* ---------------------------------------------------------------- 記録 */
+const store = { version: 1, spots: [], trips: [] };
+let fileHandle = null, dirty = false;
+
+function markDirty() { dirty = true; document.body.classList.add("dirty"); autoSave(); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function addSpot(lat, lon) {
+  const name = prompt("地点の名前", "地磯 " + (store.spots.length + 1));
+  if (!name) return;
+  store.spots.push({ id: uid(), name, lat: +lat.toFixed(5), lon: +lon.toFixed(5), created: new Date().toISOString() });
+  markDirty(); renderList(); toast("登録しました");
+}
+
+function tripLine(t) {
+  const cat = (t.catches || []).filter(c => c.species).map(c =>
+    esc(c.species) + (c.size ? " " + c.size + "cm" : "") + (c.count > 1 ? " ×" + c.count : "")).join("、");
+  return `<div class="trip"><div class="th">
+      <span class="td">${esc(t.date)}</span><span class="ts">${esc(t.spotName || "")}</span>
+      <span class="tb">${t.tideCm != null ? t.tideCm + "cm" : ""} ${t.tideRate != null ? (t.tideRate > 0 ? "+" : "") + t.tideRate : ""}</span>
+    </div>
+    ${t.depth ? `<div class="tm">実測 ${esc(t.depth)} m${t.bottom ? "／" + esc(t.bottom) : ""}${t.flow ? "／流れ " + esc(t.flow) : ""}</div>` : ""}
+    ${cat ? `<div class="tc">${cat}</div>` : ""}
+    ${t.memo ? `<div class="tm muted">${esc(t.memo)}</div>` : ""}
+  </div>`;
+}
+
+function tripForm(lat, lon, st, day) {
+  const now = new Date();
+  const pane = $("#paneTrip");
+  const cm = day ? Math.round(tideAt(day, now)) : null;
+  const rate = day ? tideRateAt(day, now) : null;
+  const near = store.spots.map(s => ({ s, d: dist(lat, lon, s.lat, s.lon) })).sort((a, b) => a.d - b.d)[0];
+  pane.innerHTML = `<div class="form">
+    <div class="f2">
+      <div class="f"><label>日付</label><input type="date" id="t_date" value="${now.toISOString().slice(0, 10)}"></div>
+      <div class="f"><label>時刻</label><input type="time" id="t_time" value="${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}"></div>
+    </div>
+    <div class="f"><label>地点</label><input id="t_spot" value="${esc(near && near.d < 300 ? near.s.name : "")}" placeholder="地点名"></div>
+    <div class="f2">
+      <div class="f"><label>実測の水深 m</label><input id="t_depth" type="number" step="0.5" placeholder="ウキ下から"></div>
+      <div class="f"><label>底の感触</label><select id="t_bottom">
+        <option value=""></option><option>砂</option><option>砂利</option><option>荒根</option><option>平根</option><option>ハエ根</option><option>藻</option>
+      </select></div>
+    </div>
+    <div class="f2">
+      <div class="f"><label>仕掛けの流れ</label><select id="t_flow">
+        <option value=""></option><option>止まり</option><option>右へゆっくり</option><option>右へ速い</option>
+        <option>左へゆっくり</option><option>左へ速い</option><option>沖へ出る</option><option>当て潮</option><option>二枚潮</option>
+      </select></div>
+      <div class="f"><label>釣果</label><input id="t_sp" placeholder="クロ / 尾長 など"></div>
+    </div>
+    <div class="f3">
+      <div class="f"><label>サイズ cm</label><input id="t_size" type="number" step="1"></div>
+      <div class="f"><label>匹数</label><input id="t_cnt" type="number" step="1" value="1"></div>
+      <div class="f"><label>ウキ号数</label><input id="t_uki" placeholder="0 / G5 など"></div>
+    </div>
+    <div class="f"><label>メモ</label><textarea id="t_memo" placeholder="潮の当たり方、足場、風の抜け、次に来るなら何時か"></textarea></div>
+    <div class="hintline">潮位 ${cm != null ? cm + " cm" : "—"}${rate != null ? "（" + (rate > 0 ? "+" : "") + rate + " cm/h）" : ""}
+      ${st ? "／" + esc(st.s.name) + "験潮所" : ""}${lastMarine ? "／波 " + fmtNum(lastMarine.wave, "m") : ""} は自動で残ります</div>
+    <div class="rowbtns"><button class="btn pri" id="t_save">記録する</button><button class="btn" id="t_cancel">やめる</button></div>
+  </div>`;
+  $("#t_cancel").onclick = () => renderTrips();
+  $("#t_save").onclick = () => {
+    const sp = $("#t_sp").value.trim();
+    store.trips.unshift({
+      id: uid(), lat: +lat.toFixed(5), lon: +lon.toFixed(5),
+      date: $("#t_date").value, time: $("#t_time").value,
+      spotName: $("#t_spot").value.trim(),
+      stationCode: st ? st.s.code : null, stationName: st ? st.s.name : null,
+      datumCm: st ? st.s.datum_cm : null,
+      tideCm: cm, tideRate: rate,
+      depth: $("#t_depth").value ? +$("#t_depth").value : null,
+      bottom: $("#t_bottom").value, flow: $("#t_flow").value, uki: $("#t_uki").value.trim(),
+      catches: sp ? [{ species: sp, size: +$("#t_size").value || null, count: +$("#t_cnt").value || 1 }] : [],
+      marine: lastMarine, memo: $("#t_memo").value.trim(), created: new Date().toISOString()
+    });
+    markDirty(); renderTrips(); toast("記録しました");
+  };
+}
+
+function renderTrips() {
+  const pane = $("#paneTrip");
+  if (!store.trips.length) {
+    pane.innerHTML = '<div class="empty">記録はまだありません。<br>地図で地点をタップして「釣行を記録する」へ。</div>';
+    return;
+  }
+  pane.innerHTML = store.trips.map(t => `<div data-id="${t.id}">${tripLine(t)}</div>`).join("");
+  $$("#paneTrip .trip").forEach((el, i) => {
+    el.addEventListener("dblclick", () => {
+      const t = store.trips[i];
+      map.setView([t.lat, t.lon], 15); analyze(t.lat, t.lon); showTab("paneSpot");
+    });
+  });
+}
+
+function renderList() {
+  const pane = $("#paneList");
+  const meta = D.coast_iso && D.coast_iso._meta;
+  const html = '<div class="sec"><h3>登録した地点</h3>' +
+    (store.spots.length ? '<span class="muted">名前をタップするとそこへ飛びます</span>'
+                        : '<span class="muted">まだありません</span>') + "</div>";
+  const spots = store.spots.map((s, i) =>
+    `<div class="spot"><span class="n" data-i="${i}">${esc(s.name)}</span>` +
+    `<span class="c">${s.lat.toFixed(4)},${s.lon.toFixed(4)}</span>` +
+    `<button class="del btn sm" data-del="${i}">削除</button></div>`).join("");
+  pane.innerHTML = html + spots + `
+    <div class="sec" id="offlineSec" hidden><h3>オフラインの備え</h3>
+      <div class="hintline" id="offlineMsg">
+        通っているうちに地磯データ（約25MB）を端末へ取り込んでおくと、圏外の磯でも動きます。
+        地図タイルは見た範囲だけ自動で残ります。
+      </div>
+      <div class="rowbtns"><button class="btn sm pri" id="prefetchBtn">オフライン用に取り込む</button></div>
+    </div>
+    <div class="sec"><h3>データの出どころ</h3>
+      <div class="hintline">
+        海岸線・等深線・底質・藻場・障害物・漁業権：<b>海しる（海上保安庁）</b>${meta ? "　取得 " + esc(meta["取得日"]) : ""}<br>
+        潮位：<b>気象庁 潮位表</b> ${TIDE.year || ""}年・験潮所 ${STATIONS.length} 地点<br>
+        地図・航空写真：<b>地理院タイル</b><br>
+        波・風・海流：<b>Open-Meteo</b>（通信が要る）<br>
+        浅場の推定：<b>Copernicus Sentinel-2</b>（青/緑band比・複数シーンの中央値）
+      </div>
+      <div class="hintline" style="margin-top:8px">
+        範囲は九州全域（一部で山口・島根の西端を含む）。<br>
+        データを更新するには <code>python tools/fetch_data.py</code>。
+      </div>
+    </div>
+    <div class="caution">
+      <b>この数字は下見の材料であって、正解ではない。</b>
+      等深線は20m刻み、海図の水深とも基準面が違う。実測したら必ず記録して、自分のデータで上書きしていくこと。
+    </div>`;
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    const sec = $("#offlineSec");
+    sec.hidden = false;
+    $("#prefetchBtn").onclick = async () => {
+      const msg = $("#offlineMsg");
+      const btn = $("#prefetchBtn");
+      const reg = await navigator.serviceWorker.ready;
+      const sw = reg.active || navigator.serviceWorker.controller;
+      if (!sw) { msg.textContent = "まだ準備できていません。一度ページを開き直してから押してください。"; return; }
+      btn.disabled = true;
+      const ch = new MessageChannel();
+      ch.port1.onmessage = ev => {
+        const d = ev.data;
+        if (d.finished) {
+          msg.textContent = `取り込み完了（${d.done}件）。これで圏外でも動きます。地図タイルは見た範囲だけ残ります。`;
+          btn.disabled = false;
+          btn.textContent = "もう一度取り込む";
+        } else {
+          msg.textContent = `取り込み中 ${d.done}/${d.total} … ${d.file.replace("./data/", "")}`;
+        }
+      };
+      msg.textContent = "取り込みを始めました…";
+      sw.postMessage({ type: "prefetch" }, [ch.port2]);
+    };
+  }
+  $$("#paneList .n").forEach(el => el.addEventListener("click", () => {
+    const s = store.spots[+el.dataset.i];
+    map.setView([s.lat, s.lon], 16); analyze(s.lat, s.lon); showTab("paneSpot");
+  }));
+  $$("#paneList [data-del]").forEach(el => el.addEventListener("click", () => {
+    store.spots.splice(+el.dataset.del, 1); markDirty(); renderList();
+  }));
+}
+
+/* ---------------------------------------------------------------- 保存 */
+const HAS_FS = typeof window.showSaveFilePicker === "function";
+
+async function openFile() {
+  if (HAS_FS) {
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: "磯読みの記録", accept: { "application/json": [".json"] } }]
+      });
+      fileHandle = h;
+      const txt = await (await h.getFile()).text();
+      loadJSON(txt);
+      toast("開きました。以降は自動保存します");
+      return;
+    } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = () => {
+    const f = inp.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { loadJSON(r.result); toast("読み込みました"); };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+function loadJSON(txt) {
+  try {
+    const d = JSON.parse(txt);
+    store.spots = d.spots || []; store.trips = d.trips || [];
+    dirty = false; document.body.classList.remove("dirty");
+    renderTrips(); renderList();
+  } catch (e) { toast("読めませんでした: " + e.message); }
+}
+async function saveFile(silent) {
+  const body = JSON.stringify({ version: 1, app: "磯読み", saved: new Date().toISOString(),
+                                spots: store.spots, trips: store.trips }, null, 1);
+  if (fileHandle) {
+    try {
+      const w = await fileHandle.createWritable();
+      await w.write(body); await w.close();
+      dirty = false; document.body.classList.remove("dirty");
+      if (!silent) toast("保存しました");
+      return;
+    } catch (e) { toast("自動保存できません: " + e.message); }
+  }
+  if (HAS_FS && !silent) {
+    try {
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName: "isoyomi_records.json",
+        types: [{ description: "磯読みの記録", accept: { "application/json": [".json"] } }]
+      });
+      return saveFile();
+    } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  if (silent) return;
+  const blob = new Blob([body], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "isoyomi_records.json";
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  dirty = false; document.body.classList.remove("dirty");
+  toast("書き出しました。USBのフォルダへ入れてください");
+}
+let autoTimer = null;
+function autoSave() {
+  if (!fileHandle) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => saveFile(true), 900);
+}
+$("#openBtn").onclick = openFile;
+$("#saveBtn").onclick = () => saveFile(false);
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------------------------------------------------------------- UI 雑務 */
+function showTab(id) {
+  $$("#tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.pane === id)));
+  $$(".pane").forEach(p => { if (p.id === id) p.setAttribute("data-on", ""); else p.removeAttribute("data-on"); });
+  if (window.matchMedia("(max-width:820px)").matches) $("#side").classList.remove("collapsed");
+}
+$$("#tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.pane)));
+$("#grip").addEventListener("click", () => {
+  $("#side").classList.toggle("collapsed");
+  setTimeout(() => map.invalidateSize(), 220);
+});
+
+let toastTimer = null;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
+}
+
+function updateNet() {
+  const el = $("#netState");
+  el.textContent = navigator.onLine ? "オンライン" : "オフライン";
+  el.classList.toggle("on", navigator.onLine);
+}
+window.addEventListener("online", updateNet);
+window.addEventListener("offline", updateNet);
+updateNet();
+
+const wd = ["日", "月", "火", "水", "木", "金", "土"];
+const nd = new Date();
+$("#today").textContent = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, "0")}-${String(nd.getDate()).padStart(2, "0")} (${wd[nd.getDay()]})`;
+
+renderTrips(); renderList();
+readHash();
+
+/* Service Worker は http(s) でしか動かない。USBから直接開いたときは何もしない */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").then(() => {
+    if (navigator.serviceWorker.controller) renderList();   // 取り込みボタンを出す
+    navigator.serviceWorker.addEventListener("controllerchange", renderList);
+  }).catch(() => { /* 登録できなくてもアプリ自体は動く */ });
+}
+if (!HAS_FS) {
+  toast("このブラウザは自動保存に対応していません。「保存」で書き出してください");
+}
+</script>
+</body>
+</html>
