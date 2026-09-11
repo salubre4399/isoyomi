@@ -5,7 +5,7 @@
    ・データ(data/*.js)は重いので、押されたときにまとめて取り込む
    ・地図タイルは見たぶんだけ残す（上限つき。無制限に貯めない）
 */
-const VER = "isoyomi-bb9985be7d92";
+const VER = "isoyomi-9f488aeb430d";
 const SHELL = VER + "-shell";
 const DATA = VER + "-data";
 const TILES = VER + "-tiles";
