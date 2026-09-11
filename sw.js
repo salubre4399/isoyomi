@@ -5,7 +5,7 @@
    ・データ(data/*.js)は重いので、押されたときにまとめて取り込む
    ・地図タイルは見たぶんだけ残す（上限つき。無制限に貯めない）
 */
-const VER = "isoyomi-9f488aeb430d";
+const VER = "isoyomi-5537cc87d4c0";
 const SHELL = VER + "-shell";
 const DATA = VER + "-data";
 const TILES = VER + "-tiles";
@@ -28,7 +28,10 @@ const DATA_FILES = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  // ブラウザの HTTP キャッシュに古い版が残っていても拾わないよう、取り直して入れる
+  e.waitUntil(caches.open(SHELL)
+    .then(c => c.addAll(SHELL_FILES.map(u => new Request(u, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {
@@ -75,6 +78,24 @@ self.addEventListener("fetch", e => {
   if (/open-meteo\.com/.test(url.hostname)) return;
 
   if (!sameOrigin) return;
+
+  // 画面そのもの（index.html）は通信できれば新しいほうを出す。キャッシュ優先にすると、
+  // 新しい版を公開しても開き直すまで古い画面が出続ける。圏外・4秒で返らないときは残してあるもの
+  if (req.mode === "navigate") {
+    e.respondWith((async () => {
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 4000);
+        const res = await fetch(req.url, { signal: ctl.signal, cache: "no-store", credentials: "same-origin" });
+        clearTimeout(timer);
+        if (res.ok) (await caches.open(SHELL)).put("./index.html", res.clone());
+        return res;
+      } catch (err) {
+        return (await caches.match("./index.html")) || new Response("オフラインです", { status: 504 });
+      }
+    })());
+    return;
+  }
 
   // アプリ本体とデータ：キャッシュ優先
   e.respondWith((async () => {

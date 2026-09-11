@@ -364,7 +364,7 @@ const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
    本当の保護ではない（ファイルは直接落とせる）。中身は公的なオープンデータなので
    守るものは無く、これは「身内の道具」だと示すための入り口。
    合言葉を変えるには tools/set_gate.py を使う */
-const GATE_HASH = "576bfa5034ae25a055a533e65097adbbcf59acc708ce64c11f28ab8b766d1877";
+const GATE_HASH = "fdb08887608a95b86a95b7465e36777a891a274fa456b23e8d963255070729cb";
 const GATE_KEY = "isoyomi.gate";
 // file:// のときはブラウザのプロファイル（C:）に残さないよう session に置く
 const gateStore = location.protocol.startsWith("http") ? window.localStorage : window.sessionStorage;
@@ -856,7 +856,7 @@ function demTile(kind, z, tx, ty) {
   }
   if (demLoading.has(key)) return demLoading.get(key);
   const ctl = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 15000) : null;   // 磯の弱い電波でも待てるように
   const p = fetch(`${DEM_URL}${kind}/${z}/${tx}/${ty}.png`, ctl ? { signal: ctl.signal } : {})
     .then(r => r.ok ? r.blob().then(decodeDem) : (r.status === 404 ? null : undefined))   // 504 は圏外
     .catch(() => undefined)
@@ -2237,9 +2237,19 @@ openGate().then(() => { map.invalidateSize(); readHash(); });
 
 /* Service Worker は http(s) でしか動かない。USBから直接開いたときは何もしない */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("sw.js").then(() => {
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.register("sw.js").then(reg => {
     if (navigator.serviceWorker.controller) renderList();   // 取り込みボタンを出す
-    navigator.serviceWorker.addEventListener("controllerchange", renderList);
+    reg.update().catch(() => {});                          // 開くたびに新しい版が出ていないか確かめる
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      renderList();
+      // 新しい版に入れ替わった。記録を書きかけでなければ開き直して、新しい画面にする
+      if (!hadController || reloading) return;
+      if (dirty) { toast("新しい版があります。保存してから開き直してください"); return; }
+      reloading = true;
+      location.reload();
+    });
   }).catch(() => { /* 登録できなくてもアプリ自体は動く */ });
 }
 if (!HAS_FS) {
