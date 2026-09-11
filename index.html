@@ -18,6 +18,7 @@
   --ink:#DCE8EA; --ink2:#9CB6BE; --ink3:#688793;
   --chart:#6FC0D0; --shoal:#8FD8DE; --buoy:#E5AC44; --kelp:#6FB183; --alert:#E28A6C;
   --iso1A:#E5AC44; --iso2:#E58044; --isoOther:#B98A5A;
+  --earth:#3A3429; --water:#0F3444; --bed:#22302E;
   --serif:"Yu Mincho","YuMincho","Hiragino Mincho ProN","MS PMincho",serif;
   --sans:"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
   --mono:"Consolas","SFMono-Regular","Menlo","MS Gothic",monospace;
@@ -109,6 +110,23 @@ button{cursor:pointer}
 .tstat div{font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums}
 .tstat span{color:var(--ink3); letter-spacing:.06em}
 
+/* gate */
+#gate{
+  position:fixed; inset:0; z-index:5000; background:var(--bg);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+#gate .box{width:min(340px,100%); text-align:center}
+#gate .bn{font-family:var(--serif); font-size:34px; font-weight:700; letter-spacing:.1em}
+#gate .bs{font-family:var(--mono); font-size:10px; letter-spacing:.3em; color:var(--chart); margin-top:-4px}
+#gate p{color:var(--ink3); font-size:12.5px; margin:18px 0 14px; line-height:1.8}
+#gate form{display:flex; gap:7px}
+#gate input{
+  flex:1; background:var(--panel); border:1px solid var(--line); border-radius:3px;
+  padding:9px 11px; font-size:15px; text-align:center; letter-spacing:.1em;
+}
+#gate .ng{color:var(--alert); font-size:12px; margin-top:10px; min-height:1.2em}
+#gate[hidden]{display:none}          /* 上の display:flex が hidden を上書きして、合言葉が合っても消えなかった */
+
 /* sdb legend */
 .sdbleg{padding:4px 10px 7px; font-size:10px; color:var(--ink3); line-height:1.6}
 .sdbleg div{display:flex; align-items:center; gap:6px}
@@ -130,6 +148,38 @@ button{cursor:pointer}
 .hours span.pk{background:var(--buoy); opacity:1}
 .hours span.now{outline:1px solid var(--buoy); outline-offset:1px}
 .hourlab{display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; color:var(--ink3); margin-top:2px}
+
+/* section（断面の見込み） */
+.dir{font-size:12.5px; line-height:1.6}
+.dir small{display:block; font-size:10.5px; color:var(--ink3)}
+#secSvg{display:block; width:100%; height:auto; margin-top:8px}
+.readcap,.matcap{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--ink3); margin-top:8px}
+.matcap{margin-top:12px}
+.reads{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:2px; margin-top:4px}
+.reads div{background:var(--panel); padding:5px 8px 6px; display:flex; flex-direction:column}
+.reads .k{font-family:var(--mono); font-size:10px; color:var(--buoy); letter-spacing:.04em}
+.reads .v{font-family:var(--mono); font-size:15px; font-variant-numeric:tabular-nums; line-height:1.35}
+.reads .v small{font-size:10px; color:var(--ink3); margin-left:2px}
+.reads .s{font-size:10px; color:var(--ink2); line-height:1.4}
+.verdict{font-size:11.5px; color:var(--ink2); margin-top:9px; line-height:1.7}
+.verdict b{color:var(--buoy)}
+.legend{display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:10px; font-size:10.5px; color:var(--ink3)}
+.legend span{display:inline-flex; align-items:center; gap:5px}
+.legend svg{flex:none; display:block}
+.mats{display:grid; grid-template-columns:auto auto 1fr; gap:4px 9px; margin-top:4px; font-size:11.5px; align-items:baseline}
+.mats .n{color:var(--ink2); white-space:nowrap}
+.mats .s{font-family:var(--mono); font-size:9.5px; border:1px solid currentColor; border-radius:2px; padding:0 4px; white-space:nowrap; text-align:center}
+.mats .s.ok{color:var(--kelp)} .mats .s.mid{color:var(--buoy)} .mats .s.no{color:var(--ink3)}
+.mats .d{color:var(--ink3); font-size:10.5px; line-height:1.55}
+.tag.iso{color:#062028; background:var(--buoy); border-color:var(--buoy)}
+
+/* 地点の登録・地磯の印 */
+#spotForm{margin-top:10px; display:flex; flex-direction:column; gap:8px}
+#spotForm[hidden]{display:none}
+.chk{display:flex; align-items:center; gap:7px; font-size:12px; cursor:pointer}
+.chk input{margin:0; accent-color:var(--buoy)}
+.chk .muted{font-size:11px}
+.chk.sm{font-size:11px; gap:4px; color:var(--ink2)}
 
 /* layer control */
 #layers{
@@ -232,6 +282,28 @@ button{cursor:pointer}
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" fill="#8FD8DE" fill-opacity=".08"/>
+      <line x1="0" y1="0" x2="0" y2="5" stroke="#8FD8DE" stroke-opacity=".5" stroke-width="1.1"/>
+    </pattern>
+  </defs>
+</svg>
+
+<div id="gate" hidden>
+  <div class="box">
+    <div class="bn">磯読み</div><div class="bs">ISOYOMI</div>
+    <p>合言葉を入れてください。<br>知っている人だけが使う道具です。</p>
+    <form id="gateForm">
+      <input id="gateInput" type="password" autocomplete="current-password"
+             inputmode="text" placeholder="合言葉" aria-label="合言葉">
+      <button class="btn pri" type="submit">開く</button>
+    </form>
+    <div class="ng" id="gateNg"></div>
+  </div>
+</div>
+
 <div id="app">
   <div id="top">
     <div class="brand">磯読み<small>ISOYOMI</small></div>
@@ -287,6 +359,44 @@ button{cursor:pointer}
 const D = window.ISOYOMI_DATA || {};
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+/* ---------------------------------------------------------------- 合言葉
+   本当の保護ではない（ファイルは直接落とせる）。中身は公的なオープンデータなので
+   守るものは無く、これは「身内の道具」だと示すための入り口。
+   合言葉を変えるには tools/set_gate.py を使う */
+const GATE_HASH = "576bfa5034ae25a055a533e65097adbbcf59acc708ce64c11f28ab8b766d1877";
+const GATE_KEY = "isoyomi.gate";
+// file:// のときはブラウザのプロファイル（C:）に残さないよう session に置く
+const gateStore = location.protocol.startsWith("http") ? window.localStorage : window.sessionStorage;
+
+async function sha256(t) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, "0")).join("");
+}
+function gatePassed() {
+  try { return gateStore.getItem(GATE_KEY) === GATE_HASH; } catch (e) { return false; }
+}
+async function openGate() {
+  if (!GATE_HASH || gatePassed()) return true;
+  const g = document.getElementById("gate");
+  g.hidden = false;
+  document.getElementById("gateInput").focus();
+  return new Promise(res => {
+    document.getElementById("gateForm").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const v = document.getElementById("gateInput").value.trim();
+      const h = await sha256("isoyomi:" + v);
+      if (h === GATE_HASH) {
+        try { gateStore.setItem(GATE_KEY, GATE_HASH); } catch (e) { /* 記憶できなくても開く */ }
+        g.hidden = true;
+        res(true);
+      } else {
+        document.getElementById("gateNg").textContent = "違います";
+        document.getElementById("gateInput").select();
+      }
+    });
+  });
+}
 
 /* ---------------------------------------------------------------- 幾何 */
 const R_EARTH = 6371008.8;
@@ -424,6 +534,13 @@ const LAYERS = [
     style: f => ({ color: (f.r === "1A" || f.r === "1B") ? "#E5AC44" : (f.r === "2" ? "#E5793F" : "#B98A5A"),
                    weight: 3, opacity: .95 }),
     pop: f => `<b>${f.f || "海岸"}</b>` + (f.n ? "<br>" + f.n : "") + (f.a ? `<br><span class="muted">${f.a}</span>` : "") + `<br><span class="muted">ESI ${f.r}</span>` },
+  { key: "coast_rock", label: "岩に接する海岸（地理院）", color: "#E5AC44", on: true, minZ: 12, type: "line", chunked: true,
+    style: () => ({ color: "#E5AC44", weight: 2.4, opacity: .9, dashArray: "5 3" }),
+    pop: () => `<b>岩等に接する海岸</b><br><span class="muted">地理院 1/25,000 相当。海保の分類より細かく、小さな岬も拾う</span>` },
+  { key: "rock_marks", label: "岩・隠顕岩の記号（地理院）", color: "#C9B79C", on: false, minZ: 14, type: "point",
+    style: f => ({ radius: f.c === 7541 ? 3.6 : 2.6, color: f.c === 7541 ? "#E5AC44" : "#C9B79C", weight: 1.2, fillOpacity: .5 }),
+    pop: f => `<b>${f.c === 7541 ? "隠顕岩" : f.c === 7511 ? "岩崖" : "岩"}</b>` + (f.c === 7541 ? "<br>潮で出たり隠れたりする岩" : "") +
+      `<br><span class="muted">地理院の地図記号を15mに1点へ間引いたもの。名前は地図との照合による</span>` },
   { key: "coast_other", label: "砂浜・人工岸", color: "#4E7686", on: false, minZ: 11, type: "line",
     style: () => ({ color: "#4E7686", weight: 2, opacity: .8 }),
     pop: f => `${f.f || ""}` + (f.a ? `<br><span class="muted">${f.a}</span>` : "") },
@@ -467,7 +584,7 @@ LAYERS.forEach(l => {
   layerBody.appendChild(row);
   $("#lay_" + l.key, row).addEventListener("change", e => {
     l.on = e.target.checked;
-    if (l.on) need(l.key).then(redraw).catch(err => toast(err.message));
+    if (l.on) need(l.chunked ? l.key + "/index" : l.key).then(redraw).catch(err => toast(err.message));
     else redraw();
   });
 });
@@ -524,12 +641,24 @@ $("#layerToggle").addEventListener("click", () => {
   el.classList.toggle("min");
   $("#layerToggle").textContent = el.classList.contains("min") ? "＋" : "－";
 });
+if (window.matchMedia("(max-width:820px)").matches) {   // スマホでは地図を広く使う。レイヤ一覧はたたんで始める
+  $("#layers").classList.add("min");
+  $("#layerToggle").textContent = "＋";
+}
 
 /* ---------------------------------------------------------------- 描画 */
 let redrawTimer = null;
 function redraw() {
   clearTimeout(redrawTimer);
   redrawTimer = setTimeout(doRedraw, 60);
+}
+function drawFeature(l, f) {
+  let lay;
+  if (l.type === "point") lay = L.circleMarker([f.g[1], f.g[0]], Object.assign({ renderer: canvasR }, l.style(f)));
+  else if (l.type === "poly") lay = L.polygon(f.g.map(r => r.map(p => [p[1], p[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
+  else lay = L.polyline(f.g.map(p => p.map(q => [q[1], q[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
+  if (l.pop) lay.bindPopup(l.pop(f));
+  drawPane.addLayer(lay);
 }
 function doRedraw() {
   drawPane.clearLayers();
@@ -538,24 +667,62 @@ function doRedraw() {
   for (const l of LAYERS) {
     const st = $("#st_" + l.key);
     if (!l.on) { st.textContent = ""; continue; }
+    if (l.chunked) {                               // 区画に分けたデータ：見ている範囲の区画だけ読む
+      if (z < l.minZ) { st.textContent = "z" + l.minZ; continue; }
+      const keys = chunkKeysIn(l.key, w, s, e, n);
+      if (!keys) { st.textContent = "…"; continue; }
+      const miss = keys.filter(k => !D[k]);
+      miss.forEach(k => need(k).then(redraw).catch(() => { st.textContent = "×"; }));
+      const seen = new Set();
+      for (const k of keys) if (D[k]) for (const f of pick(k, w, s, e, n, 3000)) {
+        if (seen.has(f.i)) continue;                 // 区画をまたぐ地物は両方の区画に入っている
+        seen.add(f.i);
+        drawFeature(l, f);
+      }
+      st.textContent = miss.length ? "…" : String(seen.size);
+      continue;
+    }
     if (!D[l.key]) { st.textContent = "…"; need(l.key).then(redraw).catch(() => { st.textContent = "×"; }); continue; }
     if (z < l.minZ) { st.textContent = "z" + l.minZ; continue; }
     const feats = pick(l.key, w, s, e, n, 3000);
     st.textContent = feats.length ? String(feats.length) : "0";
-    for (const f of feats) {
-      let lay;
-      if (l.type === "point") lay = L.circleMarker([f.g[1], f.g[0]], Object.assign({ renderer: canvasR }, l.style(f)));
-      else if (l.type === "poly") lay = L.polygon(f.g.map(r => r.map(p => [p[1], p[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
-      else lay = L.polyline(f.g.map(p => p.map(q => [q[1], q[0]])), Object.assign({ renderer: canvasR }, l.style(f)));
-      if (l.pop) lay.bindPopup(l.pop(f));
-      drawPane.addLayer(lay);
+    for (const f of feats) drawFeature(l, f);
+  }
+}
+
+/* 大きい線データ（岩に接する海岸は全部で約11MB）は 0.5°ごとに分けてある（tools/split_layer.py）。
+   見ている範囲・タップした地点のまわりの区画だけ読む */
+function chunkKeysIn(base, w, s, e, n) {
+  const ik = base + "/index";
+  if (!D[ik]) { need(ik).then(redraw).catch(() => {}); return null; }
+  const idx = D[ik], c = idx.cell, have = new Set(idx.keys), out = [];
+  for (let la = Math.floor(s / c) * c; la <= n + 1e-9; la += c) {
+    for (let lo = Math.floor(w / c) * c; lo <= e + 1e-9; lo += c) {
+      const key = la.toFixed(1) + "_" + lo.toFixed(1);
+      if (have.has(key)) out.push(base + "/" + key);
     }
   }
+  return out;
+}
+async function chunksNear(base, lat, lon, radiusM) {
+  await need(base + "/index").catch(() => null);
+  const m = metersPerDeg(lat), dw = radiusM / m.x, dh = radiusM / m.y;
+  const keys = chunkKeysIn(base, lon - dw, lat - dh, lon + dw, lat + dh) || [];
+  await Promise.all(keys.map(k => need(k).catch(() => null)));
+  return keys.filter(k => D[k]);
+}
+function nearestIn(keys, lat, lon, maxM) {
+  let best = null;
+  for (const k of keys || []) {
+    const r = nearest(k, lat, lon, maxM);
+    if (r && (!best || r.d < best.d)) best = r;
+  }
+  return best;
 }
 map.on("moveend zoomend", redraw);
 
 /* 起動時に既定オンのレイヤを読む */
-Promise.all(LAYERS.filter(l => l.on).map(l => need(l.key).catch(e => toast(e.message)))).then(redraw);
+Promise.all(LAYERS.filter(l => l.on).map(l => need(l.chunked ? l.key + "/index" : l.key).catch(e => toast(e.message)))).then(redraw);
 
 /* ---------------------------------------------------------------- 潮位 */
 const STATIONS = (D.stations && D.stations.features) || [];
@@ -637,6 +804,162 @@ function drawTide(day, dt, svg) {
   svg.innerHTML = o;
 }
 
+/* ---------------------------------------------------------------- 標高（陸か海か）
+   地理院の標高タイルは海の上が欠測になる。これで陸と海を分ける。
+   5m格子（DEM5A→5B）を優先し、無いところは10m格子（DEM10B）。10m格子は汀線を海側へ
+   10mほどにじませるので、5m格子のある区画で10m格子だけが2m未満の陸と言う画素は海とみなす。
+   一度開いた場所のタイルは Service Worker が残すので、圏外でもそこは分かる */
+const DEM_URL = "https://cyberjapandata.gsi.go.jp/xyz/";
+const DEM_FINE = [["dem5a_png", 15], ["dem5b_png", 15]];
+const DEM_COARSE = ["dem_png", 14];
+const DEM_KEEP = 160;                              // 1枚256KB。これを超えたら古いものから捨てる
+const SNAP_M = 60;                                 // 汀線からこれ以内の陸は「岩の上」とみなす
+const demReady = new Map();                        // 読めたタイル。null＝その区画にタイルが無い
+const demLoading = new Map();
+let demCanvas = null;
+
+function tileXY(lat, lon, z) {
+  const n = 2 ** z, s = Math.sin(rad(lat));
+  return { x: (lon + 180) / 360 * n, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n };
+}
+
+async function decodeDem(blob) {
+  let bmp;
+  try { bmp = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" }); }
+  catch (e) { bmp = await createImageBitmap(blob); }
+  if (!demCanvas) {
+    demCanvas = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(256, 256) : document.createElement("canvas");
+    demCanvas.width = 256; demCanvas.height = 256;
+  }
+  const g = demCanvas.getContext("2d", { willReadFrequently: true });
+  g.clearRect(0, 0, 256, 256);
+  g.drawImage(bmp, 0, 0);
+  if (bmp.close) bmp.close();
+  const px = g.getImageData(0, 0, 256, 256).data;
+  const v = new Float32Array(65536);
+  let any = false;
+  for (let i = 0, j = 0; i < 65536; i++, j += 4) {
+    const x = px[j] * 65536 + px[j + 1] * 256 + px[j + 2];
+    if (x === 0x800000 || px[j + 3] === 0) v[i] = NaN;         // 欠測（海）
+    else { v[i] = (x > 0x800000 ? x - 0x1000000 : x) * 0.01; any = true; }
+  }
+  return { v, any };
+}
+
+/* 1枚読む。{v, any}＝読めた ／ null＝タイルが無い（海だけの区画など） ／ undefined＝通信できない */
+function demTile(kind, z, tx, ty) {
+  const key = kind + "/" + z + "/" + tx + "/" + ty;
+  if (demReady.has(key)) {                         // 使ったものは新しい扱いにする
+    const t = demReady.get(key);
+    demReady.delete(key); demReady.set(key, t);
+    return Promise.resolve(t);
+  }
+  if (demLoading.has(key)) return demLoading.get(key);
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+  const p = fetch(`${DEM_URL}${kind}/${z}/${tx}/${ty}.png`, ctl ? { signal: ctl.signal } : {})
+    .then(r => r.ok ? r.blob().then(decodeDem) : (r.status === 404 ? null : undefined))   // 504 は圏外
+    .catch(() => undefined)
+    .then(res => {
+      clearTimeout(timer);
+      demLoading.delete(key);
+      if (res !== undefined) {
+        demReady.set(key, res);
+        if (demReady.size > DEM_KEEP) demReady.delete(demReady.keys().next().value);
+      }
+      return res;
+    });
+  demLoading.set(key, p);
+  return p;
+}
+
+/* 範囲のタイルをそろえる。1枚でも通信できなければ false */
+async function demLoad(kind, z, lat, lon, radiusM) {
+  const m = metersPerDeg(lat);
+  const a = tileXY(lat + radiusM / m.y, lon - radiusM / m.x, z);
+  const b = tileXY(lat - radiusM / m.y, lon + radiusM / m.x, z);
+  const jobs = [];
+  for (let tx = Math.floor(a.x); tx <= Math.floor(b.x); tx++) {
+    for (let ty = Math.floor(a.y); ty <= Math.floor(b.y); ty++) jobs.push(demTile(kind, z, tx, ty));
+  }
+  return (await Promise.all(jobs)).every(r => r !== undefined);
+}
+/* 地点のまわりをそろえる。細かい格子は汀線探しに、10m格子は3km先までの見通しに使う */
+async function demPrepare(lat, lon) {
+  const ok = await Promise.all(DEM_FINE.map(([k, z]) => demLoad(k, z, lat, lon, 450))
+    .concat(demLoad(DEM_COARSE[0], DEM_COARSE[1], lat, lon, RAY_MAX + 200)));
+  return ok.every(Boolean);
+}
+
+/* 読んであるタイルから標高(m)を引く。欠測・タイル無しは null、まだ読んでいなければ undefined */
+function demAt(kind, z, lat, lon) {
+  const t = tileXY(lat, lon, z), tx = Math.floor(t.x), ty = Math.floor(t.y);
+  const tile = demReady.get(kind + "/" + z + "/" + tx + "/" + ty);
+  if (!tile) return tile;
+  const v = tile.v[Math.min(255, Math.floor((t.y - ty) * 256)) * 256 + Math.min(255, Math.floor((t.x - tx) * 256))];
+  return Number.isNaN(v) ? null : v;
+}
+function demCovered(kind, z, lat, lon) {         // その区画にこの格子のデータがあるか
+  const t = tileXY(lat, lon, z);
+  const tile = demReady.get(kind + "/" + z + "/" + Math.floor(t.x) + "/" + Math.floor(t.y));
+  return !!(tile && tile.any);
+}
+function elevAt(lat, lon) {                      // 細かい格子から順に、最初に値のあるもの
+  for (const [k, z] of DEM_FINE) {
+    const v = demAt(k, z, lat, lon);
+    if (v != null) return { h: v, kind: k };
+  }
+  const v = demAt(DEM_COARSE[0], DEM_COARSE[1], lat, lon);
+  return v != null ? { h: v, kind: DEM_COARSE[0] } : null;
+}
+function isSea(lat, lon) {
+  const e = elevAt(lat, lon);
+  if (!e) return true;
+  return e.kind === DEM_COARSE[0] && e.h < 2.0 && DEM_FINE.some(([k, z]) => demCovered(k, z, lat, lon));
+}
+
+/* (ox,oy)[m] から方位 b へ進み、海かどうかが want になる最初の距離。近くは1m、120mより先は4m刻み */
+function marchTo(sea, ox, oy, b, maxM, want) {
+  const ux = Math.sin(b), uy = Math.cos(b);
+  for (let d = 0; d <= maxM; d += d < 120 ? 1 : 4) if (sea(ox + ux * d, oy + uy * d) === want) return d;
+  return null;
+}
+
+/* 足元が陸か海か。陸で汀線から SNAP_M 以内なら、汀線に立ったとして立ち位置を決める。
+   向きは「海が近くて長く続く方角」の平均（重み＝海の続く長さ×近さ）。その向きで最初に海になる手前に立つ */
+function footing(lat, lon) {
+  const m = metersPerDeg(lat);
+  const sea = (x, y) => isSea(lat + y / m.y, lon + x / m.x);
+  const here = sea(0, 0);
+  let near = null;                                 // いちばん近い汀線（陸なら海へ、海なら陸へ）
+  for (let i = 0; i < 144; i++) {
+    const b = 2 * Math.PI * i / 144;
+    const d = marchTo(sea, 0, 0, b, 400, !here);
+    if (d != null && (!near || d < near.d)) near = { d, b };
+  }
+  if (here) return { sea: true, shoreD: near ? near.d : null, shoreB: near ? near.b : null };
+  const e = elevAt(lat, lon);
+  const out = { sea: false, h: e ? e.h : null, shoreD: near ? near.d : null };
+  if (!near || near.d > SNAP_M) return out;
+  let vx = 0, vy = 0;
+  for (let i = 0; i < 72; i++) {
+    const b = 2 * Math.PI * i / 72, ux = Math.sin(b), uy = Math.cos(b);
+    const d0 = marchTo(sea, 0, 0, b, 120, true);
+    if (d0 == null) continue;
+    let run = 800;
+    for (let d = 4; d <= 800; d += 4) if (!sea(ux * (d0 + d), uy * (d0 + d))) { run = d; break; }
+    const w = run * Math.exp(-d0 / 40);
+    vx += ux * w; vy += uy * w;
+  }
+  let tb = Math.atan2(vx, vy);
+  let d0 = marchTo(sea, 0, 0, tb, 120, true);
+  if (d0 == null) { tb = near.b; d0 = near.d; }    // 平均の向きが陸を向いた（入り組んだ地形）
+  const s = Math.max(0, d0 - 1);
+  out.stand = { lat: lat + Math.cos(tb) * s / m.y, lon: lon + Math.sin(tb) * s / m.x };
+  out.bearing = (tb * 180 / Math.PI + 360) % 360;
+  return out;
+}
+
 /* ---------------------------------------------------------------- 流れの効き
    流速そのものは出せない。出しているのは「流れが出やすい条件が揃っているか」。
    干満差ではなく潮位の変化率を使うのが要点。大潮でも満潮・干潮の前後は止まる。 */
@@ -692,7 +1015,9 @@ function rayCast(ox, oy, dx, dy, segs, maxM) {
 }
 
 const RAYS = 36, RAY_MAX = 3000;
-function geometry(lat, lon) {
+/* 海岸線の線だけで測る古いやり方。陸と海を区別できないので、標高タイルが取れないときの
+   予備にだけ使う（海岸線から40m以内をタップしたときに限る） */
+function geometryCoast(lat, lon) {
   const segs = coastSegs(lat, lon, RAY_MAX);
   if (!segs.length) return null;
   const cast = (ox, oy) => {
@@ -733,7 +1058,56 @@ function geometry(lat, lon) {
     if (a + b < width) { width = a + b; axis = 360 * i / RAYS; }
   }
   const narrow = width === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (width - 200) / 2600));
-  return { narrow, cape, width, landFrac, axis, offset, seaward };
+  // 軸は水道に沿う向き（流れの向き）で返す。上で求めた axis は横断の向き
+  return { method: "coast", narrow, cape, width, landFrac, axis: (axis + 90) % 360, offset, seaward };
+}
+
+const angDiff = (a, b) => { const d = Math.abs((((a - b) % 360) + 360) % 360); return d > 180 ? 360 - d : d; };
+
+/* 標高で分けた海の上だけを測る。72方位それぞれ、海がどこまで続くか（向こう岸まで）。
+   onShore＝汀線に立っている（または岸から60m以内の海）。このときの水道の狭さは
+   「沖の向き±30°の向こう岸までの距離」で測る。岸に沿った方角で測ると、入り江の幅を水道と取り違える */
+const OPEN_M = 400, FAR_STEP = 16;
+function geometryDem(lat, lon, onShore) {
+  const m = metersPerDeg(lat);
+  const sea = (x, y) => isSea(lat + y / m.y, lon + x / m.x);
+  const runs = [];
+  for (let i = 0; i < 72; i++) {
+    const b = 2 * Math.PI * i / 72, ux = Math.sin(b), uy = Math.cos(b);
+    let d0 = null;                                 // 30m以内に海が無い＝陸の方角。数えない
+    for (let d = 0; d <= 30; d++) if (sea(ux * d, uy * d)) { d0 = d; break; }
+    if (d0 == null) { runs.push({ deg: i * 5, d0: null, run: 0, hit: true }); continue; }
+    let run = RAY_MAX - d0, hit = false, landN = 0;
+    for (let d = d0 + FAR_STEP; d <= RAY_MAX; d += FAR_STEP) {
+      if (sea(ux * d, uy * d)) { landN = 0; continue; }
+      if (++landN >= 2) { run = d - FAR_STEP - d0; hit = true; break; }   // 1点だけの岩は向こう岸と見ない
+    }
+    runs.push({ deg: i * 5, d0, run, hit });
+  }
+  const seaRuns = runs.filter(r => r.d0 != null);
+  if (!seaRuns.length) return null;
+  /* 岬度：400m以上海が開けている方角の割合。まっすぐな岸でおよそ半分、岬の先ほど多い */
+  const openFrac = seaRuns.filter(r => r.run >= OPEN_M).length / runs.length;
+  const cape = Math.max(0, Math.min(1, (openFrac - 0.25) / 0.5));
+  let sx = 0, sy = 0;
+  for (const r of seaRuns) { sx += Math.sin(rad(r.deg)) * r.run; sy += Math.cos(rad(r.deg)) * r.run; }
+  const seaward = (Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360;
+  let width = Infinity, axis = (seaward + 90) % 360;
+  if (onShore) {
+    const fars = seaRuns.filter(r => angDiff(r.deg, seaward) <= 30)
+      .map(r => r.hit ? r.d0 + r.run : Infinity).sort((a, b) => a - b);
+    if (fars.length) width = fars[Math.floor(fars.length / 2)];      // 中央値
+  } else {
+    for (let i = 0; i < 36; i++) {                 // 沖の点では、この点を通る一番狭い横断
+      const a = runs[i], b = runs[i + 36];
+      if (a.d0 == null || b.d0 == null || !a.hit || !b.hit) continue;
+      const wa = a.d0 + a.run, wb = b.d0 + b.run;
+      if (wa < 25 || wb < 25) continue;            // 岩の隙間は水道ではない
+      if (wa + wb < width) { width = wa + wb; axis = (a.deg + 90) % 360; }
+    }
+  }
+  const narrow = width === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (width - 200) / 2600));
+  return { method: "dem", how: onShore ? "sector" : "cross", narrow, cape, width, openFrac, seaward, axis };
 }
 
 /* 20m→50m の間隔。狭いほど急に落ちている＝瀬の縁で流れが増す */
@@ -770,11 +1144,36 @@ function flowScore(geo, steep, day, hourFrac, code, current) {
 
 const FLOW_LABEL = v => v == null ? "—" : v >= .72 ? "よく効く" : v >= .52 ? "効く" : v >= .32 ? "ふつう" : "弱い";
 
+/* 地形の測り方を一行で。標高で測れたか、海岸線だけの予備か */
+function geoLine(geo, foot) {
+  if (!geo) return "近くに海岸線データがない";
+  if (geo.method === "dem") {
+    return (geo.how === "sector"
+        ? `沖（${dirName(geo.seaward)}）±30°の向こう岸まで ${geo.width === Infinity ? "3km以上" : Math.round(geo.width) + " m"}`
+        : `この点を通る一番狭い横断 ${geo.width === Infinity ? "3km以内で絞られていない" : Math.round(geo.width) + " m"}`) +
+      `／400m以上海が開けている方角 ${Math.round(geo.openFrac * 100)}%<span class="tag meas">DEM</span>` +
+      (foot && foot.stand ? "<br>岩の上をタップしたので、汀線（地図の小さな点）に立ったとして測った" : "");
+  }
+  return `目の前の海の一番狭い横断 ${geo.width === Infinity ? "3km以内で絞られていない" : Math.round(geo.width) + " m"}` +
+    `（沖へ${Math.round(geo.offset)}m出て測定）／400m以内に陸がある方角 ${Math.round(geo.landFrac * 100)}%<br>` +
+    `<span class="warn">陸と海の区別には通信が要る。</span>いまは海岸線の線だけで測った値`;
+}
+
 let lastAnalysis = null;
 function renderFlow() {
   const box = document.getElementById("flowBox");
   if (!box || !lastAnalysis) return;
-  const { geo, steep, day, code } = lastAnalysis;
+  const { geo, steep, day, code, foot, mode } = lastAnalysis;
+  if (mode === "inland") {
+    box.innerHTML = `<div class="hintline"><b>陸の上です</b>（海まで${foot.shoreD == null ? " 400m以上" : "約 " + Math.round(foot.shoreD) + " m"}）。<br>
+      流れの効きは、海の上か、汀線から${SNAP_M}m以内の岩の上をタップしたときに出します。</div>`;
+    return;
+  }
+  if (mode === "none") {
+    box.innerHTML = `<div class="hintline">陸か海か分かりません。<b>陸と海の区別には通信が要ります</b>（標高タイルを取れなかった）。<br>
+      海岸線から40m以内をタップすれば、海岸線だけで測った値を出します。</div>`;
+    return;
+  }
   const now = new Date();
   const cur = (lastMarine && cursor && Math.abs(lastMarine.lat - cursor.lat) < 1e-6
                && Math.abs(lastMarine.lon - cursor.lon) < 1e-6)
@@ -802,22 +1201,485 @@ function renderFlow() {
       `style="height:${Math.max(6, v * 100)}%" title="${h}時 ${Math.round(v * 100)}"></span>`).join("")}</div>
     <div class="hourlab"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
     <div class="hintline" style="margin-top:8px">
-      ${geo ? `目の前の海の一番狭い横断 ${geo.width === Infinity ? "3km以内で絞られていない" : Math.round(geo.width) + " m"}` +
-              `（沖へ${Math.round(geo.offset)}m出て測定）／400m以内に陸がある方角 ${Math.round(geo.landFrac * 100)}%` : "近くに海岸線データがない"}<br>
+      ${geoLine(geo, foot)}<br>
       <b>これは流速ではない。</b>流れが出やすい条件が揃っているかを並べただけ。
       ${cur ? "海流モデルを含む" : "「波・風・海流を取る」を押すと海流モデルが加わる"}<span class="tag est">推定</span></div>`;
 }
 
+/* ---------------------------------------------------------------- 断面（深さの見込みを横から）
+   立ち位置から沖へ切った断面。陸は標高の実測、海の中は材料の間を「見込みの幅」にする。
+   材料：A＝その向きで等深線と交わる点を結んだ線 ／ B＝足元の陸の傾きを海へ延ばした線 ／
+         衛星の浅場（階級） ／ 自分の実測（投げた距離のある記録）。
+   どれも粗い材料なので、数字は幅で出し、推定の札をつける */
+const SEC_BACK = 100, SEC_AHEAD = 200, SEC_STEP = 2;
+let lastSection = null;
+
+/* ある向きの線上で等深線と交わる点。浅い順に1本ずつ（入り組んだ線を何度またいでも最初だけ） */
+function rayCross(lat, lon, brg, maxM) {
+  const dl = D.depth;
+  if (!dl) return [];
+  const m = metersPerDeg(lat);
+  const ex = Math.sin(rad(brg)) * maxM, ey = Math.cos(rad(brg)) * maxM;
+  const dw = maxM / m.x, dh = maxM / m.y;
+  const hits = [];
+  for (const f of dl.features) {
+    if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+    for (const path of f.g) for (let i = 1; i < path.length; i++) {
+      const ax = (path[i - 1][0] - lon) * m.x, ay = (path[i - 1][1] - lat) * m.y;
+      const qx = (path[i][0] - path[i - 1][0]) * m.x, qy = (path[i][1] - path[i - 1][1]) * m.y;
+      const den = ex * qy - ey * qx;
+      if (den > -1e-9 && den < 1e-9) continue;
+      const t = (ax * qy - ay * qx) / den;
+      const u = (ax * ey - ay * ex) / den;
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) hits.push([t * maxM, f.a.depth]);
+    }
+  }
+  hits.sort((a, b) => a[0] - b[0]);
+  const out = [];
+  let last = 0;
+  for (const [d, z] of hits) if (z > last) { out.push([d, z]); last = z; }   // 深くなる順だけ残す
+  return out;
+}
+
+/* 折れ線 pts=[[x,y],...] の x での値。範囲外は端の値 */
+function lerpAt(pts, x) {
+  if (x <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (x <= pts[i][0]) {
+      const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+      return x1 === x0 ? y1 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+    }
+  }
+  return pts[pts.length - 1][1];
+}
+
+/* 衛星の浅場：断面の線上の階級。画像の画素を読むので http(s) のときだけ（file:// では読めない） */
+const sdbPx = {};
+async function sdbPixels(a) {
+  if (sdbPx[a.name] !== undefined) return sdbPx[a.name];
+  if (!location.protocol.startsWith("http")) return (sdbPx[a.name] = null);
+  try {
+    const img = new Image();
+    img.src = a.file;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    sdbPx[a.name] = { w: c.width, h: c.height, px: g.getImageData(0, 0, c.width, c.height).data };
+  } catch (e) { sdbPx[a.name] = null; }
+  return sdbPx[a.name];
+}
+const merc = la => Math.log(Math.tan(Math.PI / 4 + rad(la) / 2));   // 画像は EPSG:3857 で張ってある
+function sdbArea(lat, lon) {
+  for (const a of (D.sdb && D.sdb.areas) || []) {
+    const [[s0, w0], [n0, e0]] = a.bounds;
+    if (lat >= Math.min(s0, n0) && lat <= Math.max(s0, n0) && lon >= Math.min(w0, e0) && lon <= Math.max(w0, e0)) return a;
+  }
+  return null;
+}
+function sdbClass(a, P, lat, lon) {
+  const [[s0, w0], [n0, e0]] = a.bounds;
+  const s = Math.min(s0, n0), n = Math.max(s0, n0), w = Math.min(w0, e0), e = Math.max(w0, e0);
+  const X = Math.floor((lon - w) / (e - w) * P.w);
+  const Y = Math.floor((merc(n) - merc(lat)) / (merc(n) - merc(s)) * P.h);
+  if (X < 0 || Y < 0 || X >= P.w || Y >= P.h) return null;
+  const i = (Y * P.w + X) * 4;
+  if (P.px[i + 3] < 40) return null;
+  let best = null, bd = Infinity;
+  D.sdb.classes.forEach((c, k) => {
+    const r = parseInt(c.color.slice(1, 3), 16), g = parseInt(c.color.slice(3, 5), 16), b = parseInt(c.color.slice(5, 7), 16);
+    const dd = (r - P.px[i]) ** 2 + (g - P.px[i + 1]) ** 2 + (b - P.px[i + 2]) ** 2;
+    if (dd < bd) { bd = dd; best = k; }
+  });
+  return best;
+}
+/* 階級の深さの幅 [浅, 深]（m）。濁りや陸の照り返しで深場が浅く出る海域（deep_as_10plus）は、
+   10〜20m を「10m以深」として扱う（鹿児島湾奥は岸から40mより沖で20〜50mの所も10〜20mに出る） */
+function sdbRange(k, area) {
+  const cl = D.sdb.classes;
+  if (area && area.deep_as_10plus && cl[k].max > 10) return [10, Infinity];
+  return [k === 0 ? 0 : cl[k - 1].max, cl[k].max >= 90 ? Infinity : cl[k].max];
+}
+function sdbLabel(k, area) {
+  return area && area.deep_as_10plus && D.sdb.classes[k].max > 10 ? "10m以深" : D.sdb.classes[k].label;
+}
+
+/* 断面の材料をまとめる。stand={lat,lon}, brg=沖の向き(度)。標高は demPrepare 済みの範囲（半径450m）で引く */
+async function sectionModel(stand, brg, ctx) {
+  const m = metersPerDeg(stand.lat);
+  const ux = Math.sin(rad(brg)), uy = Math.cos(rad(brg));
+  const at = x => [stand.lat + uy * x / m.y, stand.lon + ux * x / m.x];
+
+  const prof = [];                                   // -100〜+200m を2mごと。h=null は海
+  let fineKind = null;
+  for (let x = -SEC_BACK; x <= SEC_AHEAD; x += SEC_STEP) {
+    const [la, lo] = at(x);
+    const e = isSea(la, lo) ? null : elevAt(la, lo);
+    if (e && x <= 0 && x >= -20 && !fineKind) fineKind = e.kind;
+    prof.push([x, e ? e.h : null]);
+  }
+  // 足元より沖で陸が6m以上続くところ＝向こう岸。それより小さい岩は断面に描くだけ
+  let seaEnd = SEC_AHEAD, runN = 0;
+  for (const [x, h] of prof) {
+    if (x <= 6) continue;
+    if (h == null) { runN = 0; continue; }
+    if (++runN >= 3) { seaEnd = x - 2 * SEC_STEP; break; }
+  }
+  const land = prof.filter(([x]) => x <= 0);
+  const h0 = (land.slice().reverse().find(p => p[1] != null) || [0, 0])[1];
+
+  // 足元の傾き：汀線から陸へ50m以内の最大（tools/fetch_slope.py と同じ取り方）。平らすぎれば使わない
+  let slope = null, nLand = 0;
+  for (const [x, h] of land) if (x < 0 && x >= -50 && h != null) {
+    nLand++;
+    const s = Math.atan2(h - h0, -x) * 180 / Math.PI;
+    if (slope == null || s > slope) slope = s;
+  }
+  if (nLand < 3) slope = null;                       // 足元の陸が小さすぎる（離れ岩など）と傾きは測れない
+  const flat = slope != null && slope < 2;
+  if (flat) slope = null;
+
+  const cross = rayCross(stand.lat, stand.lon, brg, 6000);
+  const lineA = cross.length ? [[0, 0]].concat(cross.map(([d, z]) => [d, -z])) : null;
+
+  let sdb = null, sdbNote = "この海域はまだ取っていない";
+  const area = sdbArea(stand.lat, stand.lon);
+  if (area) {
+    const P = await sdbPixels(area);
+    if (!P) sdbNote = location.protocol.startsWith("http") ? "画像を読めなかった" : "USBから直接開いたときは読めない（start.bat か公開版で開く）";
+    else {
+      sdb = [];
+      for (let x = 0; x <= Math.min(SEC_AHEAD, seaEnd); x += 5) sdb.push([x, sdbClass(area, P, ...at(x))]);
+      sdbNote = area.label;
+    }
+  }
+
+  // 潮位（平均海面＝東京湾平均海面からの高さ m）
+  let level = null, HW = null, LW = null;
+  const { day, st } = ctx;
+  if (day && st && st.s.datum_cm != null) {
+    const base = st.s.datum_cm;
+    level = (base + tideAt(day, new Date())) / 100;
+    if (day.H && day.H.length) HW = (base + Math.max(...day.H.map(p => p[1]))) / 100;
+    if (day.L && day.L.length) LW = (base + Math.min(...day.L.map(p => p[1]))) / 100;
+  }
+
+  // 自分の実測。立ち位置が80m以内・向きが±45°以内で、投げた距離のある記録だけ
+  // 潮位（levelTP）の無い記録は、測ったときの海面の高さが分からないので打たない
+  const trips = store.trips.filter(t => t.castM != null && t.depth != null && t.levelTP != null && t.standLat != null &&
+      t.bearing != null && dist(stand.lat, stand.lon, t.standLat, t.standLon) < 80 && angDiff(t.bearing, brg) <= 45)
+    .map(t => ({ x: t.castM, z: t.levelTP - t.depth, t }));
+  const tripsNoCast = store.trips.filter(t => t.depth != null && t.castM == null &&
+      dist(stand.lat, stand.lon, t.lat, t.lon) < 120).length;
+
+  return { stand, brg, prof, h0, seaEnd, slope, flat, tanS: slope == null ? null : Math.tan(rad(slope)),
+           cross, lineA, sdb, sdbArea: area, sdbNote, level, HW, LW, trips, tripsNoCast, fineKind };
+}
+
+/* 見込みの幅：A（等深線）と B（足元の傾き）の間。片方しか無ければその線だけ。値は標高（負＝水深） */
+function bandAt(M, x) {
+  // 足元の傾きが無く、最初の等深線も400mより遠いと、磯際を直線でつないでも意味が無い
+  if (M.tanS == null && (!M.lineA || M.cross[0][0] > 400)) return null;
+  const v = [];
+  if (M.lineA) v.push(lerpAt(M.lineA, x));
+  if (M.tanS != null) v.push(-x * M.tanS);
+  return v.length ? { top: Math.max(...v), bot: Math.min(...v) } : null;
+}
+
+function svgEl(tag, a, parent) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in a) e.setAttribute(k, a[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function svgText(parent, x, y, s, a) {
+  const t = svgEl("text", Object.assign({ x, y, fill: CSSV("--ink3"), "font-family": "Consolas,Menlo,monospace", "font-size": 8.5 }, a || {}), parent);
+  t.textContent = s;
+  return t;
+}
+
+/* 断面図を描く。縦の強調倍率を返す */
+function drawSection(svg, M) {
+  const col = CSSV, SANS = getComputedStyle(document.body).fontFamily;
+  const W = 322, H = 212, L = 4, R = 30, T = 16, B = 26;
+  const PW = W - L - R, PH = H - T - B;
+  const xmin = -SEC_BACK, xmax = SEC_AHEAD;
+  const lvl = M.level != null ? M.level : 0;
+  const landH = M.prof.filter(p => p[1] != null).map(p => p[1]);
+  const ymax = Math.max(8, Math.ceil(((landH.length ? Math.max(...landH) : 0) + 3) / 4) * 4);
+  const deep = M.lineA ? lerpAt(M.lineA, xmax) : (M.tanS != null ? -xmax * M.tanS : -20);
+  const ymin = Math.min(-24, Math.floor((deep - 3) / 5) * 5, ...M.trips.map(p => Math.floor((p.z - 3) / 5) * 5));
+  const X = v => L + (v - xmin) / (xmax - xmin) * PW;
+  const Y = v => T + (ymax - v) / (ymax - ymin) * PH;               // はみ出した分は clipPath で切る
+  const P = (x, y) => X(x).toFixed(1) + "," + Y(y).toFixed(1);
+  const halo = c => `paint-order:stroke;stroke:${c};stroke-width:3px;stroke-linejoin:round`;
+  svg.innerHTML = "";
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svgEl("rect", { x: L, y: T, width: PW, height: PH }, svgEl("clipPath", { id: "secClip" }, svgEl("defs", {}, svg)));
+  const g = svgEl("g", { "clip-path": "url(#secClip)" }, svg);
+
+  const sea = [];                                    // 足元から向こう岸までの海
+  for (let x = 0; x <= Math.min(xmax, M.seaEnd); x += SEC_STEP) sea.push(x);
+  const xe = sea[sea.length - 1];
+
+  svgEl("rect", { x: X(0), y: Y(lvl), width: X(xe) - X(0), height: Y(ymin) - Y(lvl), fill: col("--water") }, g);
+  const bands = sea.map(x => [x, bandAt(M, x)]).filter(p => p[1]);
+  if (bands.length) {
+    svgEl("polygon", { points: bands.map(([x, b]) => P(x, b.bot)).join(" ") + " " + P(xe, ymin) + " " + P(0, ymin), fill: col("--bed") }, g);
+    svgEl("polygon", { points: bands.map(([x, b]) => P(x, b.top)).join(" ") + " " +
+                               bands.slice().reverse().map(([x, b]) => P(x, b.bot)).join(" "), fill: "url(#hatch)" }, g);
+  }
+  if (M.sdb) {                                       // 衛星の浅場（階級の深さの幅を薄い帯で）
+    for (let i = 0; i < M.sdb.length; i++) {
+      const [x, k] = M.sdb[i];
+      if (k == null) continue;
+      const [lo, hi] = sdbRange(k, M.sdbArea);
+      const x2 = i + 1 < M.sdb.length ? M.sdb[i + 1][0] : x + 5;
+      svgEl("rect", { x: X(x), y: Y(-lo), width: Math.max(1, X(x2) - X(x) - .6),
+                      height: Math.max(1, Y(hi === Infinity ? ymin : -hi) - Y(-lo)), fill: D.sdb.classes[k].color, "fill-opacity": .28 }, g);
+    }
+  }
+  if (M.lineA) svgEl("polyline", { points: sea.map(x => P(x, lerpAt(M.lineA, x))).join(" "), fill: "none", stroke: col("--chart"), "stroke-width": 1.7, "stroke-linejoin": "round" }, g);
+  if (M.tanS != null) svgEl("polyline", { points: sea.map(x => P(x, -x * M.tanS)).join(" "), fill: "none", stroke: col("--kelp"), "stroke-width": 1.4, "stroke-dasharray": "4 3" }, g);
+  if (M.HW != null && M.LW != null)
+    svgEl("rect", { x: X(0), y: Y(M.HW), width: X(xe) - X(0), height: Math.max(1, Y(M.LW) - Y(M.HW)), fill: col("--shoal"), "fill-opacity": .1 }, g);
+  svgEl("line", { x1: X(0), x2: X(xe), y1: Y(lvl), y2: Y(lvl), stroke: col("--shoal"), "stroke-width": 1.3 }, g);
+
+  let run = [];                                      // 陸（足元の後ろ、沖の岩、向こう岸）
+  const flush = () => {
+    if (run.length >= 2) {
+      const x0 = run[0][0], x1 = run[run.length - 1][0];
+      svgEl("polygon", { points: [P(x0, ymin)].concat(run.map(([x, h]) => P(x, h)), [P(x1, ymin)]).join(" "), fill: col("--earth") }, g);
+      svgEl("polyline", { points: run.map(([x, h]) => P(x, h)).join(" "), fill: "none", stroke: col("--isoOther"), "stroke-width": 1.4, "stroke-linejoin": "round" }, g);
+    }
+    run = [];
+  };
+  for (const [x, h] of M.prof) { if (h != null) run.push([x, h]); else flush(); }
+  flush();
+  svgEl("line", { x1: X(0), x2: X(0), y1: Y(M.h0), y2: Y(0), stroke: col("--isoOther"), "stroke-width": 1.4 }, g);
+
+  for (let v = Math.ceil(ymin / 10) * 10; v <= ymax; v += 10) {   // 目盛り（平均海面からの高さ）
+    svgEl("line", { x1: L, x2: L + PW, y1: Y(v), y2: Y(v), stroke: col("--ink3"), "stroke-opacity": v === 0 ? .5 : .2, "stroke-dasharray": v === 0 ? "none" : "2 3" }, svg);
+    svgText(svg, L + PW + 4, Y(v) + 3, v === 0 ? "0" : (v > 0 ? "+" : "−") + Math.abs(v));
+  }
+  svgText(svg, L + PW + 4, T - 6, "m");
+  svgEl("line", { x1: L, x2: L + PW, y1: T + PH, y2: T + PH, stroke: col("--line") }, svg);
+  [-100, -50, 0, 50, 100, 150, 200].forEach(d => {
+    svgEl("line", { x1: X(d), x2: X(d), y1: T + PH, y2: T + PH + 3, stroke: col("--ink3") }, svg);
+    svgText(svg, X(d), T + PH + 12, d === 200 ? "200m" : String(Math.abs(d)), { "text-anchor": d === -100 ? "start" : d === 200 ? "end" : "middle" });
+  });
+  svgText(svg, L, H - 2, "← 陸", { "font-family": SANS, "font-size": 9 });
+  svgText(svg, X(0), H - 2, "汀線", { "font-family": SANS, "font-size": 9, "text-anchor": "middle" });
+  svgText(svg, L + PW, H - 2, "沖 →", { "font-family": SANS, "font-size": 9, "text-anchor": "end" });
+
+  M.cross.filter(([d]) => d <= xe).forEach(([d, z]) => {           // 等深線と交わる点
+    svgEl("circle", { cx: X(d), cy: Y(-z), r: 2.7, fill: col("--chart") }, svg);
+    const right = X(d) < L + PW - 60;
+    svgText(svg, X(d) + (right ? 5 : -5), Y(-z) - 4, `${z}m線`, { fill: col("--chart"), "font-family": SANS, "font-size": 9.5,
+            "text-anchor": right ? "start" : "end", style: halo(col("--bed")) });
+  });
+  M.trips.forEach(p => svgEl("circle", { cx: X(p.x), cy: Y(p.z), r: 3.4, fill: col("--buoy"), stroke: col("--panel"), "stroke-width": 1.2 }, svg));
+  [10, 30, 50].filter(d => d <= xe).forEach(d => {                  // 投げる距離（海面に浮き）
+    const b = bandAt(M, d);
+    if (b) svgEl("line", { x1: X(d), x2: X(d), y1: Y(lvl), y2: Y(b.bot), stroke: col("--buoy"), "stroke-opacity": .5, "stroke-dasharray": "1.5 2" }, svg);
+    svgEl("circle", { cx: X(d), cy: Y(lvl), r: 2.4, fill: col("--buoy") }, svg);
+    svgText(svg, X(d), Y(lvl) - 5, String(d), { fill: col("--buoy"), "font-size": 8, "text-anchor": "middle" });
+  });
+  if (M.HW != null) svgText(svg, X(xe) - 2, Y(M.HW) - 5, "海面（満〜干）", { fill: col("--ink2"), "font-family": SANS, "font-size": 8.5, "text-anchor": "end" });
+  if (M.seaEnd < xmax) svgText(svg, X(M.seaEnd) - 3, T + 10, "向こうの陸", { fill: col("--ink2"), "font-family": SANS, "font-size": 8.5, "text-anchor": "end" });
+  svgEl("circle", { cx: X(0), cy: Y(M.h0), r: 3.2, fill: col("--buoy"), stroke: col("--panel"), "stroke-width": 1 }, svg);
+  svgText(svg, X(0) - 5, Y(M.h0) - 6, "立ち位置", { fill: col("--buoy"), "font-family": SANS, "font-size": 9, "text-anchor": "end", style: halo(col("--panel")) });
+  return (PH / (ymax - ymin)) / (PW / (xmax - xmin));
+}
+
+/* 断面のまわりの文字：向き・読み取り・一言・凡例・材料 */
+function sectionHtml(M) {
+  const sg = v => v == null ? "—" : (v > 0.05 ? "+" : v < -0.05 ? "−" : "") + Math.abs(v).toFixed(1);
+  const lvl = M.level != null ? M.level : 0;
+  const num = v => v < 1 ? "1未満" : String(Math.round(v));
+  const reads = [10, 30, 50].map(d => {
+    if (d > M.seaEnd) return { d, far: true };
+    const b = bandAt(M, d);
+    const sd = M.sdb ? (M.sdb.find(p => p[0] >= d) || [])[1] : null;
+    const mine = M.trips.filter(p => Math.abs(p.x - d) <= 6).map(p => lvl - p.z);
+    return { d, lo: b ? lvl - b.top : null, hi: b ? lvl - b.bot : null, sd, mine };
+  });
+  const cells = reads.map(r => {
+    if (r.far) return `<div><span class="k">${r.d}m先</span><span class="v">陸</span></div>`;
+    const main = r.lo == null ? "—" : r.hi < 1 ? "1未満<small>m</small>"
+      : (Math.round(r.lo) === Math.round(r.hi) ? num(r.hi) : `${num(r.lo)}〜${Math.round(r.hi)}`) + "<small>m</small>";
+    const sub = [];
+    if (r.sd != null) sub.push(`衛星 ${esc(sdbLabel(r.sd, M.sdbArea))}`);
+    if (r.mine.length) sub.push(`実測 ${r.mine.map(v => v.toFixed(1)).join("/")}m`);
+    return `<div><span class="k">${r.d}m先</span><span class="v">${main}</span>${sub.length ? `<span class="s">${sub.join("・")}</span>` : ""}</div>`;
+  }).join("");
+
+  const r30 = reads[1];
+  let verdict;
+  if (M.trips.length) verdict = `<b>この向きの実測が ${M.trips.length} 件ある。</b>見込みの幅より実測を信じる`;
+  else if (r30.lo != null && M.lineA && M.tanS != null) {
+    const ratio = r30.hi / Math.max(r30.lo, .5);
+    verdict = ratio >= 2
+      ? `<b>材料どうしが30m先で${ratio.toFixed(0)}倍食い違う。</b>足元の傾きと等深線が合っていない。ここは実測で決めるしかない`
+      : `<b>2つの材料の差は小さい。</b>ただし、どちらも粗い材料からの推定なので、実測で確かめる値打ちはある`;
+  } else if (r30.far) verdict = "30m先はもう陸（向こう岸か沖の岩）";
+  else if (r30.lo == null) verdict = "<b>磯際の水深を読む材料が足りない。</b>" +
+    (M.tanS == null ? "足元が平らで傾きを海へ延ばせず、等深線も遠い" : "");
+  else verdict = "材料が1つしか無いので、見込みは粗い";
+
+  const c = z => { const f = M.cross.find(q => q[1] === z); return f ? Math.round(f[0]) + "m" : "—"; };
+  const mats = [
+    ["陸の標高", "実測", "ok", `地理院 標高タイル（${M.fineKind === "dem_png" ? "10m" : "5m"}格子）`],
+    ["等深線", M.lineA ? "粗い" : "なし", M.lineA ? "mid" : "no",
+      M.lineA ? `この向きで20m線まで${c(20)}、50m線まで${c(50)}。元が500m格子なので位置は数百mずれうる` : "この向きでは等深線と交わらない"]
+  ];
+  if (M.c04 && M.c04.avg != null) mats.push(["沿岸メッシュ", "参考", "mid",
+    `この1km区画の水深 平均${esc(M.c04.avg)}m` + (M.c04.min != null ? `・最浅${esc(M.c04.min)}m・最深${esc(M.c04.max)}m` : "（推計値のみ）") + "（1987年）"]);
+  mats.push(["足元の傾き", M.slope == null ? "なし" : "推定", M.slope == null ? "no" : "mid",
+    M.slope != null ? `汀線から陸へ50m以内の最大 ${M.slope.toFixed(1)}°をそのまま海へ延ばす`
+    : M.flat ? "足元が平らで、傾きを海へ延ばせない" : "足元の陸の標高が取れない"]);
+  mats.push(["衛星の浅場", M.sdb ? "階級" : "なし", M.sdb ? "mid" : "no", M.sdb
+    ? `${esc(M.sdbNote)}（Sentinel-2）${M.sdbArea && M.sdbArea.note ? "。" + esc(M.sdbArea.note) : ""}` : esc(M.sdbNote)]);
+  mats.push(["自分の実測", M.trips.length ? M.trips.length + "件" : "なし", M.trips.length ? "ok" : "no",
+    M.trips.length ? "立ち位置が80m以内・向きが±45°以内の記録"
+    : M.tripsNoCast ? `近くに ${M.tripsNoCast} 件あるが、投げた距離が無い` : "記録に投げた距離を入れると、ここに点で打つ"]);
+
+  return `
+    <div class="dir">${M.here === "sea" ? "最寄りの岸から、タップした点へ" : "岩の先端から"} <b>${dirName(M.brg)} ${Math.round(M.brg)}°</b> へ
+      <small>縦は横の<span id="secVe">—</span>倍に強調 ・ 高さは平均海面から${M.level != null
+        ? `。潮位 いま ${sg(M.level)} m（満 ${sg(M.HW)} ／ 干 ${sg(M.LW)}）` : "（潮位は出せない）"}</small></div>
+    <svg id="secSvg" role="img" aria-label="立ち位置から沖へ${SEC_AHEAD}mの断面"></svg>
+    <div class="readcap">${M.level != null ? "いまの潮位での水深" : "平均海面での水深（潮位が分からない）"}（見込みの幅）</div>
+    <div class="reads">${cells}</div>
+    <div class="verdict">${verdict}<span class="tag est">推定</span></div>
+    <div class="legend">
+      <span><svg width="14" height="9"><rect width="14" height="9" fill="var(--earth)"/><line x1="0" y1="1" x2="14" y2="1" stroke="var(--isoOther)" stroke-width="2"/></svg>陸（標高の実測）</span>
+      <span><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--chart)" stroke-width="1.8"/></svg>等深線を結んだ線</span>
+      <span><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--kelp)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>足元の傾きを延ばした線</span>
+      <span><svg width="14" height="9"><rect width="14" height="9" fill="url(#hatch)"/></svg>見込みの幅</span>
+      ${M.sdb ? '<span><svg width="14" height="9"><rect width="14" height="9" fill="var(--shoal)" fill-opacity=".3"/></svg>衛星の浅場</span>' : ""}
+      <span><svg width="10" height="10"><circle cx="5" cy="5" r="3" fill="var(--buoy)"/></svg>投げる距離・自分の実測</span>
+    </div>
+    <div class="matcap">この断面の材料</div>
+    <div class="mats">${mats.map(([n, s, k, d]) => `<span class="n">${n}</span><span class="s ${k}">${s}</span><span class="d">${d}</span>`).join("")}</div>`;
+}
+
+/* 地図の上の断面の線（立ち位置から後ろ60mは破線、沖200mは実線） */
+const secLayer = L.layerGroup().addTo(map);
+function drawSectionLine(stand, brg) {
+  secLayer.clearLayers();
+  const m = metersPerDeg(stand.lat);
+  const pt = x => [stand.lat + Math.cos(rad(brg)) * x / m.y, stand.lon + Math.sin(rad(brg)) * x / m.x];
+  L.polyline([pt(-60), pt(0)], { color: "#E5AC44", weight: 2.4, dashArray: "5 4", interactive: false }).addTo(secLayer);
+  L.polyline([pt(0), pt(SEC_AHEAD)], { color: "#8FD8DE", weight: 2.6, interactive: false }).addTo(secLayer);
+  [30, 60, 100, 150].forEach(d => L.circleMarker(pt(d), { radius: 2.4, color: "#8FD8DE", weight: 1, fillOpacity: 1, interactive: false }).addTo(secLayer));
+}
+
+/* ---------------------------------------------------------------- 地磯の判定・自分の地点 */
+const mySpots = L.layerGroup().addTo(map);
+layerBody.insertAdjacentHTML("beforeend",
+  '<div class="lsep"></div><div class="lrow"><input type="checkbox" id="b_mine" checked>' +
+  '<label for="b_mine"><i style="background:#E5AC44;height:8px;width:8px;border-radius:50%"></i>自分の地点</label></div>');
+$("#b_mine").addEventListener("change", e => { if (e.target.checked) mySpots.addTo(map); else map.removeLayer(mySpots); });
+
+function drawMySpots() {
+  mySpots.clearLayers();
+  store.spots.forEach(s => {
+    const c = s.iso ? "#E5AC44" : "#9CB6BE";
+    L.circleMarker([s.lat, s.lon], { radius: 6, color: c, weight: 2, fillColor: c, fillOpacity: .35, bubblingMouseEvents: false })
+      .bindTooltip(esc(s.name) + (s.iso ? "（地磯）" : ""), { direction: "top", offset: [0, -6] })
+      .on("click", () => { analyze(s.lat, s.lon); showTab("paneSpot"); })
+      .addTo(mySpots);
+  });
+}
+
+function lineLength(f) {
+  let s = 0;
+  for (const p of f.g) for (let i = 1; i < p.length; i++) s += dist(p[i - 1][1], p[i - 1][0], p[i][1], p[i][0]);
+  return s;
+}
+/* 海岸の判定。優先の順：自分の地磯 → 地理院の岩の海岸 → 海保の地磯 → 海保のそれ以外 */
+function coastJudge(lat, lon, rockKeys) {
+  const mine = store.spots.filter(s => s.iso).map(s => ({ s, d: dist(lat, lon, s.lat, s.lon) })).sort((a, b) => a.d - b.d)[0];
+  const rock = nearestIn(rockKeys, lat, lon, 40);
+  const iso = nearest("coast_iso", lat, lon, 60);
+  const esi = iso || nearest("coast_other", lat, lon, 1200);
+  const esiLen = esi ? lineLength(esi.f) : 0;
+  const coarse = esi && esiLen > 800 ? `。海保は${(esiLen / 1000).toFixed(1)}kmを1区分で扱っていて、小さな磯は拾えない` : "";
+  if (mine && mine.d <= SNAP_M) return { iso: true, html: `自分の地磯「${esc(mine.s.name)}」<span class="tag meas">登録</span>`,
+    note: rock ? "地理院：岩等に接する海岸" : (esi ? `海保の分類：${esc(esi.f.f)}` : "") };
+  if (rock) return { iso: true, html: `岩等に接する海岸<span class="tag meas">地理院</span>`,
+    note: !esi ? "" : iso ? `海保の分類でも ${esc(esi.f.f)}` : `海保の分類では「${esc(esi.f.f)}」${coarse}` };
+  if (iso) return { iso: true, html: `${esc(iso.f.f)}<span class="tag meas">海保</span>`, note: `ESI ${esc(iso.f.r || "-")}` };
+  if (esi) return { iso: false, html: `<span class="muted">${esc(esi.f.f)}</span>`, note: `地磯の区分ではない${coarse}` };
+  return { iso: false, html: '<span class="muted">近くに海岸線データなし</span>', note: "" };
+}
+
+/* 沿岸メッシュ（国土数値情報 C04・1987年）。利用条件が確かめられないので USB の中にだけ置く。
+   公開版には無いので、読めなければ黙って飛ばす */
+async function c04At(lat, lon) {
+  const d = await need("local_c04").catch(() => null);
+  if (!d || !d.features) return null;
+  let here = null;
+  const names = [];
+  const m = metersPerDeg(lat), dw = 1200 / m.x, dh = 1200 / m.y;
+  for (const f of d.features) {
+    if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+    const inside = inPoly(lat, lon, f.g);
+    if (inside) here = f.a;
+    (f.a.iso || []).forEach(n => { if (!names.includes(n)) { if (inside) names.unshift(n); else names.push(n); } });
+  }
+  names.sort((a, b) => (/港$/.test(a) ? 1 : 0) - (/港$/.test(b) ? 1 : 0));   // 港の名前は地磯の名前の候補として後ろへ
+  return { here, names };
+}
+
+/* 地点の登録：名前と「地磯」の印（海保・地理院の分類より優先） */
+function spotForm(lat, lon, guess) {
+  const box = $("#spotForm");
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="f"><label for="sp_name">名前</label><input id="sp_name" value="${esc(guess.name)}"></div>
+    <label class="chk" for="sp_iso"><input type="checkbox" id="sp_iso"${guess.iso ? " checked" : ""}>
+      地磯として扱う<span class="muted">（海保・地理院の分類より優先）</span></label>
+    <div class="rowbtns"><button class="btn sm pri" id="sp_ok">登録する</button><button class="btn sm" id="sp_no">やめる</button></div>`;
+  $("#sp_name").focus();
+  $("#sp_no").onclick = () => { box.hidden = true; };
+  $("#sp_ok").onclick = () => {
+    const iso = $("#sp_iso").checked;
+    store.spots.push({ id: uid(), name: $("#sp_name").value.trim() || ("地磯 " + (store.spots.length + 1)),
+                       lat: +lat.toFixed(5), lon: +lon.toFixed(5), iso, created: new Date().toISOString() });
+    markDirty(); renderList();
+    toast(iso ? "地磯として登録しました" : "登録しました");
+    analyze(lat, lon);
+  };
+}
+
+/* 入力された日付・時刻の潮位。潮位表の年の外なら null */
+function tideAtInput(st, dateStr, timeStr) {
+  if (!st || !dateStr) return null;
+  const dt = new Date(dateStr + "T" + (timeStr || "12:00"));
+  if (isNaN(dt)) return null;
+  const dayX = tideDay(st.s.code, dt);
+  if (!dayX) return null;
+  const cmX = tideAt(dayX, dt);
+  return { cm: Math.round(cmX), rate: tideRateAt(dayX, dt),
+           levelTP: st.s.datum_cm != null ? (st.s.datum_cm + cmX) / 100 : null };
+}
+
 /* ---------------------------------------------------------------- 地点の解析 */
-let cursor = null, cursorMarker = null;
+let cursor = null, cursorMarker = null, standMarker = null, analyzeSeq = 0;
 const DEPTHS = [20, 50, 100, 150, 200];
 
 async function analyze(lat, lon) {
+  const seq = ++analyzeSeq;                        // 続けてタップされたら、前のほうの結果は捨てる
   cursor = { lat, lon };
   try {
     history.replaceState(null, "", "#" + lat.toFixed(5) + "," + lon.toFixed(5) + "," + map.getZoom());
   } catch (e) { /* file:// では失敗することがある。地点表示には影響しない */ }
   if (cursorMarker) map.removeLayer(cursorMarker);
+  if (standMarker) { map.removeLayer(standMarker); standMarker = null; }
+  secLayer.clearLayers();
   cursorMarker = L.circleMarker([lat, lon], {
     radius: 7, color: "#E5AC44", weight: 2, fillColor: "#E5AC44", fillOpacity: .3
   }).addTo(map);
@@ -827,43 +1689,86 @@ async function analyze(lat, lon) {
   box.hidden = false;
   box.innerHTML = '<div class="empty">調べています…</div>';
 
-  await Promise.all(["coast_iso", "coast_other", "depth", "seabed", "weed", "obstruction", "fishery"]
-    .map(k => need(k).catch(() => null)));
+  const [, demOk, rockKeys] = await Promise.all([
+    Promise.all(["coast_iso", "coast_other", "depth", "seabed", "weed", "obstruction", "fishery", "sdb"]
+      .map(k => need(k).catch(() => null))),
+    demPrepare(lat, lon).catch(() => false),
+    chunksNear("coast_rock", lat, lon, 500).catch(() => [])      // 海をタップしたときの立ち位置（200m先まで）も入る広さ
+  ]);
+  if (seq !== analyzeSeq) return;
+
+  /* 足元：陸か海か（標高タイル）。岩の上なら汀線に立ったとして、以下はそこで測る。
+     標高タイルが取れないときは、海岸線から40m以内に限って海岸線だけで測る */
+  let foot = null, mode;
+  if (demOk) {
+    foot = footing(lat, lon);
+    mode = !foot.sea && !foot.stand ? "inland" : "dem";
+  } else {
+    mode = nearest("coast_iso", lat, lon, 40) || nearest("coast_other", lat, lon, 40) ? "coast" : "none";
+  }
+  const plat = foot && foot.stand ? foot.stand.lat : lat;
+  const plon = foot && foot.stand ? foot.stand.lon : lon;
+  if (foot && foot.stand) {
+    standMarker = L.circleMarker([plat, plon], {
+      radius: 4, color: "#08161D", weight: 1, fillColor: "#E5AC44", fillOpacity: 1
+    }).addTo(map);
+  }
+  const shoreTxt = d => d == null ? "400m以上" : Math.round(d) + " m";
+  const footRow = !foot
+    ? `<dt>足元</dt><dd><span class="muted">陸か海か不明</span><em>標高タイルに通信が要る</em></dd>`
+    : foot.sea
+      ? `<dt>足元</dt><dd>海<span class="tag meas">DEM</span><em>岸まで ${shoreTxt(foot.shoreD)}</em></dd>`
+      : `<dt>足元</dt><dd>陸<span class="tag meas">DEM</span><em>${foot.h != null ? "標高 " + foot.h.toFixed(1) + " m ・ " : ""}汀線まで ${shoreTxt(foot.shoreD)}</em></dd>`;
 
   /* 海岸 */
-  const coast = nearest("coast_iso", lat, lon, 1200);
-  const coastOther = coast ? null : nearest("coast_other", lat, lon, 1200);
+  const coast = nearest("coast_iso", plat, plon, 1200);
+  const coastOther = coast ? null : nearest("coast_other", plat, plon, 1200);
 
   /* 等深線までの距離 */
   const dd = {};
   const dl = D.depth;
   if (dl) {
-    const m = metersPerDeg(lat), span = 30000;
+    const m = metersPerDeg(plat), span = 30000;
     const dw = span / m.x, dh = span / m.y;
     for (const f of dl.features) {
       const dep = f.a.depth;
-      if (!bboxHit(f._b, lon - dw, lat - dh, lon + dw, lat + dh)) continue;
+      if (!bboxHit(f._b, plon - dw, plat - dh, plon + dw, plat + dh)) continue;
       let best = dd[dep] === undefined ? Infinity : dd[dep];
       for (const path of f.g) for (let i = 1; i < path.length; i++) {
-        const d2 = distToSeg(lat, lon, path[i - 1][1], path[i - 1][0], path[i][1], path[i][0]);
+        const d2 = distToSeg(plat, plon, path[i - 1][1], path[i - 1][0], path[i][1], path[i][0]);
         if (d2 < best) best = d2;
       }
       dd[dep] = best;
     }
   }
 
-  const seabed = nearest("seabed", lat, lon, 4000);
-  const weed = nearest("weed", lat, lon, 1500);
-  const obst = nearest("obstruction", lat, lon, 1500);
+  const seabed = nearest("seabed", plat, plon, 4000);
+  const weed = nearest("weed", plat, plon, 1500);
+  const obst = nearest("obstruction", plat, plon, 1500);
   const fish = [];
   if (D.fishery) for (const f of D.fishery.features) {
-    if (bboxHit(f._b, lon, lat, lon, lat) && inPoly(lat, lon, f.g)) fish.push(f.t);
+    if (bboxHit(f._b, plon, plat, plon, plat) && inPoly(plat, plon, f.g)) fish.push(f.t);
   }
 
   /* 潮位 */
-  const st = nearestStation(lat, lon);
+  const st = nearestStation(plat, plon);
   const now = new Date();
   const day = st ? tideDay(st.s.code, now) : null;
+
+  /* 断面の立ち位置と向き。岩の上→汀線に立って沖へ ／ 岸から200m以内の海→最寄りの岸に立ってタップした点へ */
+  let sec = null;
+  if (foot && foot.stand) sec = { stand: foot.stand, brg: foot.bearing, here: "land" };
+  else if (foot && foot.sea && foot.shoreD != null && foot.shoreB != null && foot.shoreD <= SEC_AHEAD) {
+    const m = metersPerDeg(lat), s = foot.shoreD + 1;
+    sec = { stand: { lat: lat + Math.cos(foot.shoreB) * s / m.y, lon: lon + Math.sin(foot.shoreB) * s / m.x },
+            brg: (foot.shoreB * 180 / Math.PI + 180) % 360, here: "sea" };
+  }
+  const c04 = await c04At(plat, plon);
+  const M = sec ? await sectionModel(sec.stand, sec.brg, { day, st }) : null;
+  if (seq !== analyzeSeq) return;
+  if (M) { M.here = sec.here; M.c04 = c04 && c04.here; }
+  lastSection = sec;
+  const judge = sec ? coastJudge(sec.stand.lat, sec.stand.lon, rockKeys) : coastJudge(plat, plon, rockKeys);   // 海をタップしたら、立つ岸で判定する
 
   /* 描画 */
   const fmtM = v => v === undefined || v === Infinity ? "—" : (v < 1000 ? Math.round(v) + " m" : (v / 1000).toFixed(1) + " km");
@@ -872,33 +1777,41 @@ async function analyze(lat, lon) {
 
   html += `<div class="sec"><h3>地点</h3><dl class="kv">
     <dt>座標</dt><dd>${lat.toFixed(5)}, ${lon.toFixed(5)}</dd>
-    <dt>海岸地形</dt><dd>${coast ? esc(coast.f.f) + `<span class="tag meas">海保</span>` :
-      (coastOther ? `<span class="muted">${esc(coastOther.f.f)}</span>` : '<span class="muted">近くに海岸線データなし</span>')}</dd>`;
-  if (coast) {
-    html += `<dt>ESI</dt><dd>${esc(coast.f.r || "-")}<em>${coast.d < 60 ? "この地点上" : Math.round(coast.d) + "m 先"}</em></dd>`;
-    if (coast.f.n) html += `<dt>海岸名</dt><dd>${esc(coast.f.n)}</dd>`;
-    if (coast.f.a) html += `<dt>所在地</dt><dd>${esc(coast.f.a)}</dd>`;
-  }
+    ${footRow}
+    <dt>海岸</dt><dd>${judge.html}${judge.iso ? '<span class="tag iso">地磯</span>' : ""}${judge.note ? `<em>${judge.note}</em>` : ""}</dd>`;
+  const place = coast || coastOther;
+  if (place && place.f.n) html += `<dt>海岸名</dt><dd>${esc(place.f.n)}</dd>`;
+  if (place && place.f.a) html += `<dt>所在地</dt><dd>${esc(place.f.a)}</dd>`;
+  if (c04 && c04.names.length) html += `<dt>磯釣り場</dt><dd>${c04.names.slice(0, 3).map(esc).join("、")}<span class="tag est">1987年</span>
+    <em>国土数値情報の沿岸メッシュ（この1km区画と隣）に載っている名前</em></dd>`;
   html += `</dl>
     <div class="rowbtns"><button class="btn sm" id="mkSpot">この地点を登録</button>
-    <button class="btn sm" id="copyLL">座標をコピー</button></div></div>`;
+    <button class="btn sm" id="copyLL">座標をコピー</button></div>
+    <div id="spotForm" hidden></div></div>`;
 
-  html += `<div class="sec"><h3>深さの見込み</h3>`;
-  DEPTHS.forEach(d => {
-    const v = dd[d];
-    const pct = v === undefined || v === Infinity ? 0 : Math.max(2, 100 - Math.min(100, v / maxBar * 100));
-    html += `<div class="dbar"><span class="d">${d}m</span><span class="t"><i style="width:${pct}%"></i></span><span class="v">${fmtM(v)}</span></div>`;
-  });
-  html += `<div class="hintline" style="margin-top:7px">等深線までの水平距離。<b>近いほど急深</b>。
-    元データは20m刻みなので磯際の起伏は表していない<span class="tag est">推定の材料</span></div>`;
-  if (coast && coast.f.s != null) {
-    const sl = coast.f.s;
-    html += `<dl class="kv" style="margin-top:9px">
-      <dt>陸の勾配</dt><dd>${sl}°<span class="tag meas">DEM</span><em>背後の高さ ${coast.f.hm} m</em></dd>
-    </dl><div class="hintline">${
-      sl >= 35 ? "<b>崖がそのまま海へ落ちている。</b>磯際から水深がある見込み"
-    : sl >= 20 ? "そこそこ立った斜面。水中にも続いている見込み"
-    : "なだらかな斜面。磯際は浅い見込み"}</div>`;
+  if (M) {
+    html += `<div class="sec"><h3>断面の見込み</h3>${sectionHtml(M)}`;
+  } else {
+    /* 断面が出せないときは、これまでの「等深線までの距離」で出す */
+    const noSec = mode === "inland" ? "" : !foot ? "断面には標高タイルが要る（通信のあるところで一度開けば、その場所は圏外でも出る）"
+      : foot.sea ? `岸から${SEC_AHEAD}m以上離れているので断面は出さない。岸の近くの海か、岩の上をタップすると出る` : "";
+    html += `<div class="sec"><h3>深さの見込み</h3>`;
+    DEPTHS.forEach(d => {
+      const v = dd[d];
+      const pct = v === undefined || v === Infinity ? 0 : Math.max(2, 100 - Math.min(100, v / maxBar * 100));
+      html += `<div class="dbar"><span class="d">${d}m</span><span class="t"><i style="width:${pct}%"></i></span><span class="v">${fmtM(v)}</span></div>`;
+    });
+    html += `<div class="hintline" style="margin-top:7px">等深線までの水平距離。<b>近いほど急深</b>。
+      元データは20m刻みなので磯際の起伏は表していない<span class="tag est">推定の材料</span>${noSec ? "<br>" + noSec : ""}</div>`;
+    if (coast && coast.f.s != null) {
+      const sl = coast.f.s;
+      html += `<dl class="kv" style="margin-top:9px">
+        <dt>陸の勾配</dt><dd>${sl}°<span class="tag meas">DEM</span><em>背後の高さ ${coast.f.hm} m</em></dd>
+      </dl><div class="hintline">${
+        sl >= 35 ? "<b>崖がそのまま海へ落ちている。</b>磯際から水深がある見込み"
+      : sl >= 20 ? "そこそこ立った斜面。水中にも続いている見込み"
+      : "なだらかな斜面。磯際は浅い見込み"}</div>`;
+    }
   }
   html += `<dl class="kv" style="margin-top:9px">
     <dt>底質</dt><dd>${seabed ? esc(seabed.f.a.nature) + `<em>${Math.round(seabed.d)}m先</em>` : '<span class="muted">近傍になし</span>'}</dd>
@@ -926,10 +1839,12 @@ async function analyze(lat, lon) {
       大潮でも<b>満潮・干潮の前後は止まる</b>。効くのは変化率のほう</div></div>`;
   }
 
-  const geo = geometry(lat, lon);
+  const nearShore = !!(foot && (foot.stand || (foot.sea && foot.shoreD != null && foot.shoreD <= SNAP_M)));
+  const geo = mode === "dem" ? geometryDem(plat, plon, nearShore)
+            : mode === "coast" ? geometryCoast(lat, lon) : null;
   const steep = steepness(dd);
-  lastAnalysis = { geo, steep, day, code: st && st.s.code };
-  if (day || geo) {
+  lastAnalysis = { geo, steep, day, code: st && st.s.code, foot, mode };
+  if (day || geo || mode === "inland" || mode === "none") {
     html += `<div class="sec"><h3>流れの効き（推定）</h3><div id="flowBox"></div></div>`;
   }
 
@@ -950,16 +1865,23 @@ async function analyze(lat, lon) {
 
   box.innerHTML = html;
   if (day) drawTide(day, now, $("#tideSvg"));
+  if (M) {
+    $("#secVe").textContent = drawSection($("#secSvg"), M).toFixed(1);
+    drawSectionLine(M.stand, M.brg);
+  }
   renderFlow();
 
-  $("#mkSpot").onclick = () => addSpot(lat, lon);
+  $("#mkSpot").onclick = () => spotForm(lat, lon, {
+    name: (c04 && c04.names.find(n => !store.spots.some(s => s.name === n))) || "地磯 " + (store.spots.length + 1),
+    iso: judge.iso
+  });
   $("#copyLL").onclick = () => {
     const s = lat.toFixed(5) + "," + lon.toFixed(5);
     (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(
       () => toast("コピーしました " + s), () => toast(s));
   };
   $("#getMarine").onclick = () => fetchMarine(lat, lon);
-  $("#addTrip").onclick = () => { showTab("paneTrip"); tripForm(lat, lon, st, day); };
+  $("#addTrip").onclick = () => { showTab("paneTrip"); tripForm(lat, lon, st, day, sec); };
 }
 map.on("click", e => analyze(e.latlng.lat, e.latlng.lng));
 
@@ -1030,27 +1952,21 @@ let fileHandle = null, dirty = false;
 function markDirty() { dirty = true; document.body.classList.add("dirty"); autoSave(); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-function addSpot(lat, lon) {
-  const name = prompt("地点の名前", "地磯 " + (store.spots.length + 1));
-  if (!name) return;
-  store.spots.push({ id: uid(), name, lat: +lat.toFixed(5), lon: +lon.toFixed(5), created: new Date().toISOString() });
-  markDirty(); renderList(); toast("登録しました");
-}
-
 function tripLine(t) {
   const cat = (t.catches || []).filter(c => c.species).map(c =>
     esc(c.species) + (c.size ? " " + c.size + "cm" : "") + (c.count > 1 ? " ×" + c.count : "")).join("、");
+  const where = t.castM != null ? `（${esc(t.castM)}m先${t.bearing != null ? "・" + dirName(t.bearing) : ""}）` : "";
   return `<div class="trip"><div class="th">
       <span class="td">${esc(t.date)}</span><span class="ts">${esc(t.spotName || "")}</span>
       <span class="tb">${t.tideCm != null ? t.tideCm + "cm" : ""} ${t.tideRate != null ? (t.tideRate > 0 ? "+" : "") + t.tideRate : ""}</span>
     </div>
-    ${t.depth ? `<div class="tm">実測 ${esc(t.depth)} m${t.bottom ? "／" + esc(t.bottom) : ""}${t.flow ? "／流れ " + esc(t.flow) : ""}</div>` : ""}
+    ${t.depth != null ? `<div class="tm">実測 ${esc(t.depth)} m${where}${t.bottom ? "／" + esc(t.bottom) : ""}${t.flow ? "／流れ " + esc(t.flow) : ""}</div>` : ""}
     ${cat ? `<div class="tc">${cat}</div>` : ""}
     ${t.memo ? `<div class="tm muted">${esc(t.memo)}</div>` : ""}
   </div>`;
 }
 
-function tripForm(lat, lon, st, day) {
+function tripForm(lat, lon, st, day, sec) {
   const now = new Date();
   const pane = $("#paneTrip");
   const cm = day ? Math.round(tideAt(day, now)) : null;
@@ -1058,7 +1974,7 @@ function tripForm(lat, lon, st, day) {
   const near = store.spots.map(s => ({ s, d: dist(lat, lon, s.lat, s.lon) })).sort((a, b) => a.d - b.d)[0];
   pane.innerHTML = `<div class="form">
     <div class="f2">
-      <div class="f"><label>日付</label><input type="date" id="t_date" value="${now.toISOString().slice(0, 10)}"></div>
+      <div class="f"><label>日付</label><input type="date" id="t_date" value="${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}"></div>
       <div class="f"><label>時刻</label><input type="time" id="t_time" value="${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}"></div>
     </div>
     <div class="f"><label>地点</label><input id="t_spot" value="${esc(near && near.d < 300 ? near.s.name : "")}" placeholder="地点名"></div>
@@ -1067,6 +1983,11 @@ function tripForm(lat, lon, st, day) {
       <div class="f"><label>底の感触</label><select id="t_bottom">
         <option value=""></option><option>砂</option><option>砂利</option><option>荒根</option><option>平根</option><option>ハエ根</option><option>藻</option>
       </select></div>
+    </div>
+    <div class="f2">
+      <div class="f"><label for="t_cast">投げた距離 m</label><input id="t_cast" type="number" step="1" min="0"
+        placeholder="${sec ? "竿下なら 0" : "断面が無い地点"}"${sec ? "" : " disabled"}></div>
+      <div class="f"><label for="t_dir">投げた向き</label><input id="t_dir" value="${sec ? dirName(sec.brg) + " " + Math.round(sec.brg) + "°（いまの断面）" : "—"}" disabled></div>
     </div>
     <div class="f2">
       <div class="f"><label>仕掛けの流れ</label><select id="t_flow">
@@ -1082,20 +2003,25 @@ function tripForm(lat, lon, st, day) {
     </div>
     <div class="f"><label>メモ</label><textarea id="t_memo" placeholder="潮の当たり方、足場、風の抜け、次に来るなら何時か"></textarea></div>
     <div class="hintline">潮位 ${cm != null ? cm + " cm" : "—"}${rate != null ? "（" + (rate > 0 ? "+" : "") + rate + " cm/h）" : ""}
-      ${st ? "／" + esc(st.s.name) + "験潮所" : ""}${lastMarine ? "／波 " + fmtNum(lastMarine.wave, "m") : ""} は自動で残ります</div>
+      ${st ? "／" + esc(st.s.name) + "験潮所" : ""}${lastMarine ? "／波 " + fmtNum(lastMarine.wave, "m") : ""} は自動で残ります（日時を変えると、その時刻の潮位で残る）。
+      ${sec ? "<br><b>投げた距離</b>を入れると、この磯の断面に実測の点が打たれる（向きはいま見ている断面）" : ""}</div>
     <div class="rowbtns"><button class="btn pri" id="t_save">記録する</button><button class="btn" id="t_cancel">やめる</button></div>
   </div>`;
   $("#t_cancel").onclick = () => renderTrips();
   $("#t_save").onclick = () => {
     const sp = $("#t_sp").value.trim();
+    const tx = tideAtInput(st, $("#t_date").value, $("#t_time").value);   // 入力した日時の潮位で残す
     store.trips.unshift({
       id: uid(), lat: +lat.toFixed(5), lon: +lon.toFixed(5),
       date: $("#t_date").value, time: $("#t_time").value,
       spotName: $("#t_spot").value.trim(),
       stationCode: st ? st.s.code : null, stationName: st ? st.s.name : null,
       datumCm: st ? st.s.datum_cm : null,
-      tideCm: cm, tideRate: rate,
+      tideCm: tx ? tx.cm : cm, tideRate: tx ? tx.rate : rate, levelTP: tx ? tx.levelTP : null,
       depth: $("#t_depth").value ? +$("#t_depth").value : null,
+      castM: sec && $("#t_cast").value !== "" ? +$("#t_cast").value : null,
+      standLat: sec ? +sec.stand.lat.toFixed(6) : null, standLon: sec ? +sec.stand.lon.toFixed(6) : null,
+      bearing: sec ? Math.round(sec.brg) : null,
       bottom: $("#t_bottom").value, flow: $("#t_flow").value, uki: $("#t_uki").value.trim(),
       catches: sp ? [{ species: sp, size: +$("#t_size").value || null, count: +$("#t_cnt").value || 1 }] : [],
       marine: lastMarine, memo: $("#t_memo").value.trim(), created: new Date().toISOString()
@@ -1123,16 +2049,17 @@ function renderList() {
   const pane = $("#paneList");
   const meta = D.coast_iso && D.coast_iso._meta;
   const html = '<div class="sec"><h3>登録した地点</h3>' +
-    (store.spots.length ? '<span class="muted">名前をタップするとそこへ飛びます</span>'
+    (store.spots.length ? '<span class="muted">名前をタップするとそこへ飛びます。「地磯」に印を付けた地点は、海保や地理院の分類より優先して地磯として扱います</span>'
                         : '<span class="muted">まだありません</span>') + "</div>";
   const spots = store.spots.map((s, i) =>
     `<div class="spot"><span class="n" data-i="${i}">${esc(s.name)}</span>` +
+    `<label class="chk sm" title="地磯として扱う"><input type="checkbox" data-iso="${i}"${s.iso ? " checked" : ""}>地磯</label>` +
     `<span class="c">${s.lat.toFixed(4)},${s.lon.toFixed(4)}</span>` +
     `<button class="del btn sm" data-del="${i}">削除</button></div>`).join("");
   pane.innerHTML = html + spots + `
     <div class="sec" id="offlineSec" hidden><h3>オフラインの備え</h3>
       <div class="hintline" id="offlineMsg">
-        通っているうちに地磯データ（約25MB）を端末へ取り込んでおくと、圏外の磯でも動きます。
+        通っているうちに地磯データ（約40MB）を端末へ取り込んでおくと、圏外の磯でも動きます。
         地図タイルは見た範囲だけ自動で残ります。
       </div>
       <div class="rowbtns"><button class="btn sm pri" id="prefetchBtn">オフライン用に取り込む</button></div>
@@ -1143,7 +2070,9 @@ function renderList() {
         潮位：<b>気象庁 潮位表</b> ${TIDE.year || ""}年・験潮所 ${STATIONS.length} 地点<br>
         地図・航空写真：<b>地理院タイル</b><br>
         波・風・海流：<b>Open-Meteo</b>（通信が要る）<br>
-        浅場の推定：<b>Copernicus Sentinel-2</b>（青/緑band比・複数シーンの中央値）
+        浅場の推定：<b>Copernicus Sentinel-2</b>（青/緑band比・複数シーンの中央値）<br>
+        岩に接する海岸・標高：<b>国土地理院</b>（ベクトルタイル提供実験・標高タイル）<br>
+        磯釣り場の名前・沿岸メッシュ：<b>国土数値情報 C04</b>（1987年。USBから開いたときだけ）
       </div>
       <div class="hintline" style="margin-top:8px">
         範囲は九州全域（一部で山口・島根の西端を含む）。<br>
@@ -1176,7 +2105,10 @@ function renderList() {
         }
       };
       msg.textContent = "取り込みを始めました…";
-      sw.postMessage({ type: "prefetch" }, [ch.port2]);
+      // 区画に分けた岩の海岸は、区画の一覧から全部を足して取り込む
+      const idx = await need("coast_rock/index").catch(() => null);
+      const extra = idx ? idx.keys.map(k => "./data/coast_rock/" + k + ".js") : [];
+      sw.postMessage({ type: "prefetch", extra }, [ch.port2]);
     };
   }
   $$("#paneList .n").forEach(el => el.addEventListener("click", () => {
@@ -1186,6 +2118,12 @@ function renderList() {
   $$("#paneList [data-del]").forEach(el => el.addEventListener("click", () => {
     store.spots.splice(+el.dataset.del, 1); markDirty(); renderList();
   }));
+  $$("#paneList [data-iso]").forEach(el => el.addEventListener("change", () => {
+    store.spots[+el.dataset.iso].iso = el.checked;
+    markDirty(); drawMySpots();
+    if (cursor) analyze(cursor.lat, cursor.lon);
+  }));
+  drawMySpots();
 }
 
 /* ---------------------------------------------------------------- 保存 */
@@ -1295,7 +2233,7 @@ const nd = new Date();
 $("#today").textContent = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, "0")}-${String(nd.getDate()).padStart(2, "0")} (${wd[nd.getDay()]})`;
 
 renderTrips(); renderList();
-readHash();
+openGate().then(() => { map.invalidateSize(); readHash(); });
 
 /* Service Worker は http(s) でしか動かない。USBから直接開いたときは何もしない */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

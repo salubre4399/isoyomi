@@ -5,7 +5,7 @@
    ・データ(data/*.js)は重いので、押されたときにまとめて取り込む
    ・地図タイルは見たぶんだけ残す（上限つき。無制限に貯めない）
 */
-const VER = "isoyomi-v1";
+const VER = "isoyomi-bb9985be7d92";
 const SHELL = VER + "-shell";
 const DATA = VER + "-data";
 const TILES = VER + "-tiles";
@@ -23,7 +23,8 @@ const SHELL_FILES = [
 const DATA_FILES = [
   "./data/coast_iso.js", "./data/coast_other.js", "./data/depth.js", "./data/seabed.js",
   "./data/weed.js", "./data/obstruction.js", "./data/coral.js", "./data/fishery.js",
-  "./data/light.js", "./data/port.js"
+  "./data/light.js", "./data/port.js", "./data/sdb.js", "./data/rock_marks.js",
+  "./data/coast_rock/index.js"          // 区画ごとのファイルは、画面から一覧を渡されて取り込む
 ];
 
 self.addEventListener("install", e => {
@@ -63,7 +64,8 @@ self.addEventListener("fetch", e => {
         if (res.ok) { c.put(req, res.clone()); trimTiles(); }
         return res;
       } catch (err) {
-        return new Response("", { status: 504, statusText: "オフライン" });
+        // statusText は ISO-8859-1 しか通らない。日本語を入れると Response が作れず、取得そのものが失敗する
+        return new Response("", { status: 504, statusText: "Offline" });
       }
     })());
     return;
@@ -93,17 +95,19 @@ self.addEventListener("fetch", e => {
 self.addEventListener("message", e => {
   if (!e.data || e.data.type !== "prefetch") return;
   const port = e.ports && e.ports[0];
+  const extra = Array.isArray(e.data.extra) ? e.data.extra.filter(f => /^\.\/data\/[\w./-]+\.js$/.test(f)) : [];
+  const files = DATA_FILES.concat(extra);
   (async () => {
     const c = await caches.open(DATA);
     let done = 0;
-    for (const f of DATA_FILES) {
+    for (const f of files) {
       try {
         const res = await fetch(f, { cache: "reload" });
         if (res.ok) await c.put(f, res);
       } catch (err) { /* 1つ落ちても続ける。後でもう一度押せばよい */ }
       done++;
-      if (port) port.postMessage({ done, total: DATA_FILES.length, file: f });
+      if (port) port.postMessage({ done, total: files.length, file: f });
     }
-    if (port) port.postMessage({ done, total: DATA_FILES.length, finished: true });
+    if (port) port.postMessage({ done, total: files.length, finished: true });
   })();
 });
